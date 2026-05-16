@@ -1,0 +1,133 @@
+CC#     Standard Purpose            Parameter
+---------------------------------------------------------------------
+0   X   Bank select (MSB)           -
+1   -   Modulation wheel (MSB)      TODO
+2   X   Breath controller (MSB)     -
+3   O                               LFO rate
+4   X   Foot pedal (MSB)            -
+5   X   Portamento time (MSB)       -
+6   X   Data entry (MSB)            -
+7   O   Volume (MSB)                Level
+8   X   Balance (MSB)               -
+9   O                               Algorithm
+10  O   Pan (MSB)                   Pan (0-42 left, 43-85 middle, 86-127 right)
+11  X   Expression (MSB)            -
+12  X   Effect controller 1 (MSB)   -
+13  X   Effect controller 2 (MSB)   -
+14  O                               PM sensitivity
+15  O                               AM sensitivity
+16  O   General purpose 1 (MSB)     Op 1 AM start
+17  O   General purpose 2 (MSB)     Op 2 AM start
+18  O   General purpose 3 (MSB)     Op 3 AM start
+19  O   General purpose 4 (MSB)     Op 4 AM start
+20  O                               Op 1 level
+21  O                               Op 2 level
+22  O                               Op 3 level
+23  O                               Op 4 level
+24  O                               Op 1 velocity to level
+25  O                               Op 2 velocity to level
+26  O                               Op 3 velocity to level
+27  O                               Op 4 velocity to level
+28  O                               Op 1 start
+29  O                               Op 2 start
+30  O                               Op 3 start
+31  O                               Op 4 start
+
+32  X   Bank select (LSB)           -
+33  X   Modulation wheel (LSB)      -
+34  X   Breath controller (LSB)     -
+35  X                               -
+36  X   Foot pedal (LSB)            -
+37  X   Portamento time (LSB)       -
+38  X   Data entry (LSB)            -
+39  X   Volume (LSB)                -
+40  X   Balance (LSB)               -
+41  X                               -
+42  X   Pan (LSB)                   -
+43  X   Expression (LSB)            -
+44  X   Effect controller 1 (LSB)   -
+45  X   Effect controller 2 (LSB)   -
+46  X                               -
+47  X                               -
+48  X   General purpose 1 (LSB)     -
+49  X   General purpose 2 (LSB)     -
+50  X   General purpose 3 (LSB)     -
+51  X   General purpose 4 (LSB)     -
+52  X                               -
+53  X                               -
+54  X                               -
+55  X                               -
+56  X                               -
+57  X                               -
+58  X                               -
+59  X                               -
+60  X                               -
+61  X                               -
+62  X                               -
+63  X                               -
+
+64  O   Sustain (on/off)            Sustain (on/off)
+65  X   Portamento (on/off)         -
+66  X   Sostenuto (on/off)          -
+67  X   Soft (on/off)               -
+68  X   Legato (on/off)             -
+69  X   Hold 2 (on/off)             -
+70  O   Sound control 1 (variation) Op 1 frequency multiplier
+71  O   Sound control 2 (resonance) Op 2 frequency multiplier
+72  O   Sound control 3 (release)   Op 3 frequency multiplier
+73  O   Sound control 4 (attack)    Op 4 frequency multiplier
+74  O   Sound control 5 (cutoff)    Op 1 detune
+75  O   Sound controller 6          Op 2 detune
+76  O   Sound controller 7          Op 3 detune
+77  O   Sound controller 8          Op 4 detune
+78  O   Sound controller 9          Op 1 feedback
+79  X   Sound controller 10         -
+80  X   General purpose switch 1    -
+81  X   General purpose switch 2    -
+82  X   General purpose switch 3    -
+83  X   General purpose switch 4    -
+84  X   Portamento amount           -
+85  O                               Op 1 attack (SSG-EG if >= 64)
+86  O                               Op 1 decay 1
+87  O                               Op 1 sustain
+88  O                               Op 1 decay 2
+89  O                               Op 1 release
+90  O                               Op 1 rate scaling
+91  X   Effect 1 depth (reverb)     -
+92  X   Effect 2 depth (tremolo)    -
+93  X   Effect 3 depth (chorus)     -
+94  X   Effect 4 depth (detune)     -
+95  X   Effect 5 depth (phaser)     -
+96  X   Data increment              -
+97  X   Data decrement              -
+98  X   NRPN (LSB)                  -
+99  X   NRPN (MSB)                  -
+100 X   RPN (LSB)                   -
+101 X   RPN (MSB)                   -
+102 O                               Op 2 attack (SSG-EG if >= 64)
+103 O                               Op 2 decay 1
+104 O                               Op 2 sustain
+105 O                               Op 2 decay 2
+106 O                               Op 2 release
+107 O                               Op 2 rate scaling
+108 O                               Op 3 attack (SSG-EG if >= 64)
+109 O                               Op 3 decay 1
+110 O                               Op 3 sustain
+111 O                               Op 3 decay 2
+112 O                               Op 3 release
+113 O                               Op 3 rate scaling
+114 O                               Op 4 attack (SSG-EG if >= 64)
+115 O                               Op 4 decay 1
+116 O                               Op 4 sustain
+117 O                               Op 4 decay 2
+118 O                               Op 4 release
+119 O                               Op 4 rate scaling
+
+120 O   All sound off
+121 X   Reset all controllers
+122 X   Local control (on/off)
+123 O   All notes off
+124 X   Omni off
+125 X   Omni on
+126 X   Mono mode
+127 X   Poly mode

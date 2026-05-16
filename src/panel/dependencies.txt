@@ -1,0 +1,2 @@
+arduino-cli lib install "Adafruit ILI9341"
+arduino-cli lib install "Adafruit FT6206 Library"

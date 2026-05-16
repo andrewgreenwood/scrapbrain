@@ -1,0 +1,43 @@
+EEPROM
+------
+
+Offset  Size    Description
++0x00   2       Signature
++0x02   1       MIDI input channel
++0x04   960     Saved patches (64 bytes x 15)
++0x3ff  -       End
+
+Patch layout
+------------
+64 bytes per patch (some spare/unused)
+
+Offset  Size    Description
++0x00   1       LFO rate?
++0x01   1       PM start?
++0x02   1       PM depth?
++0x03   1       AM depth?
++0x04   1       Algorithm
++0x05   1       Op.1 Feedback
++0x06   1       Op.1 Frequency Multiplier
++0x07   1       Op.1 Detune
++0x08   1       Op.1 Start
++0x09   1       Op.1 ?
++0x0a   1       Op.1 Attack
++0x0b   1       Op.1 Decay 1
++0x0c   1       Op.1 Sustain
++0x0d   1       Op.1 Decay 2
++0x0e   1       Op.1 Release
++0x0f   1       Op.1 AM Start
++0x10   1       Op.1 Velocity to Level
++0x11   1       Op.1 Level
+
+
+12 controls per operator x4 = 48
+LFO rate
+PM start
+AM depth
+PM depth?
+Feedback
+Algorithm
+
+
