@@ -60,12 +60,14 @@ void UI::handleTouchInput(bool touched, int16_t x, int16_t y)
             case TouchMoveEvent:
                 if ((panel != m_last_touch_panel) || (hotspot != m_last_touch_hotspot)) {
                     m_same_hotspot = false;
-                    m_last_touch_panel->onTouchEvent(TouchLeaveEvent, m_last_touch_hotspot.id,
-                                                     m_last_touch_x - (m_last_touch_panel->m_x + m_last_touch_hotspot.x),
-                                                     m_last_touch_y - (m_last_touch_panel->m_y + m_last_touch_hotspot.y));
-                    m_last_touch_panel->onTouchEvent(TouchEnterEvent, hotspot.id,
-                                                     x - (panel->m_x + hotspot.x),
-                                                     y - (panel->m_y + hotspot.y));
+                    if (m_last_touch_panel) {
+                        m_last_touch_panel->onTouchEvent(TouchLeaveEvent, m_last_touch_hotspot.id,
+                                                        m_last_touch_x - (m_last_touch_panel->m_x + m_last_touch_hotspot.x),
+                                                        m_last_touch_y - (m_last_touch_panel->m_y + m_last_touch_hotspot.y));
+                    }
+                    panel->onTouchEvent(TouchEnterEvent, hotspot.id,
+                                        x - (panel->m_x + hotspot.x),
+                                        y - (panel->m_y + hotspot.y));
                     m_last_touch_panel = panel;
                     m_last_touch_hotspot = hotspot;
                 }
@@ -86,3 +88,17 @@ void UI::handleTouchInput(bool touched, int16_t x, int16_t y)
     m_last_touch_x = x;
     m_last_touch_y = y;
 }
+
+
+void UI::showError(const char *title, const char *message)
+{
+    m_screen.fillRect(0, 0, width() - 1, height() - 1, COLOUR_DARK_RED);
+    m_screen.setTextColor(COLOUR_WHITE);
+    m_screen.setTextSize(2);
+    m_screen.setCursor(0, 0);
+    m_screen.println(title);
+    m_screen.setTextSize(1);
+    m_screen.println("");
+    m_screen.print(message);
+}
+

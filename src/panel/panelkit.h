@@ -94,7 +94,6 @@ class UI {
           m_touch_start_time(0), m_last_touch_x(-1), m_last_touch_y(-1),
           m_initial_touch_panel(NULL), m_last_touch_panel(NULL), m_same_hotspot(false)
         {
-            //m_background_colour = COLOUR_BLACK;
         }
 
         void begin(uint16_t colour)
@@ -127,6 +126,8 @@ class UI {
         Panel *getPanelAt(int16_t x, int16_t y) const;
 
         void handleTouchInput(bool touched, int16_t x, int16_t y);
+
+        void showError(const char *title, const char *message);
 
     private:
         Adafruit_GFX &m_screen;
@@ -375,7 +376,9 @@ class Panel: public Print {
 
                     case GRAPHIC_SET_COLOUR_OP:
                         if (!m_force_background_colour) {
-                            setColour(*(uint16_t*)data);
+                            uint16_t colour;
+                            memcpy(&colour, data, sizeof(uint16_t));
+                            setColour(colour);
                         }
                         break;
 

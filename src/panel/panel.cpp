@@ -1,3 +1,38 @@
+/*
+    SCRAP BRAIN - YM2612 Hardware Synth - Panel
+    Author: Andrew Greenwood
+
+    TODO: Implement mux and potentiometer reading
+
+    Hardware: Atmega328p
+
+    Pin map (Arduino):
+        0   Serial RX (MIDI in), also connected to FTDI TX
+        1   Serial TX (MIDI out) also connected to FTDI RX
+        2   Display TCS
+        3   Display DC
+        4   Multiplexer S0
+        5   Multiplexer S1
+        6   Multiplexer S2
+        7   Multiplexer S3 (only for 16-channel, not main panel)
+        8   -
+        9   Display backlight
+        10  -
+        11  SPI MOSI (for touchscreen)
+        12  SPI MISO (for touchscreen)
+        13  SPI SCK (for touchscreen)
+        A0  Multiplexer 3 COM
+        A1  Multiplexer 1 COM
+        A2  Multiplexer 2 COM
+        A3  Main panel multiplexer COM
+        A4  I2C SDA (for touchscreen)
+        A5  I2C SCL (for touchscreen)
+*/
+
+#define DISPLAY_TCS_PIN         2
+#define DISPLAY_DC_PIN          3
+#define DISPLAY_BACKLIGHT_PIN   9
+
 #include <Arduino.h>
 
 #ifdef MOCK_ARDUINO
@@ -13,9 +48,11 @@
 MockScreen screen(240, 320);
 MockTouchScreen touchscreen;
 #else
-Adafruit_ILI9341 screen(3, 2);
+Adafruit_ILI9341 screen(DISPLAY_TCS_PIN, DISPLAY_DC_PIN);
 Adafruit_FT6206 touchscreen;
 #endif
+
+UI ui(screen);
 
 #define BACKGROUND_COLOUR           0x1082
 #define TOPBAR_COLOUR               0x0000
@@ -1113,7 +1150,6 @@ class Splash: public Panel {
 };
 
 
-UI ui(screen);
 TopBar topBar(ui);
 Pager pager(ui, 0, 24, 320, 216);
 MainPage page(pager);
@@ -1207,17 +1243,16 @@ void SettingsPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t
     }
 }
 
-
 void setup()
 {
-    pinMode(9, OUTPUT);
-    digitalWrite(9, LOW);
+    pinMode(DISPLAY_BACKLIGHT_PIN, OUTPUT);
+    digitalWrite(DISPLAY_BACKLIGHT_PIN, LOW);
 
     ui.setGraphicsTable(graphics);      // TODO
     //ui.setBackgroundColour(BACKGROUND_COLOUR);
     //setScreen(screen);
     screen.begin();
-    screen.setRotation(3);
+    screen.setRotation(1);      // 1
     //screen.fillScreen(BACKGROUND_COLOUR);
     //Panel::setScreen(screen);
 
@@ -1226,7 +1261,7 @@ void setup()
     Splash splash(ui);
 
     splash.show();
-    //digitalWrite(9, HIGH);
+    digitalWrite(DISPLAY_BACKLIGHT_PIN, HIGH);
 
 #if !defined(MOCK_ARDUINO)
     if (!touchscreen.begin(40, &Wire)) {
@@ -1237,23 +1272,28 @@ void setup()
     delay(1000);
     //pager.setPage(page);
     
-    digitalWrite(9, LOW);
+    digitalWrite(DISPLAY_BACKLIGHT_PIN, LOW);
     splash.hide();
 
     topBar.show();
     pager.setPage(page);
-    //digitalWrite(9, HIGH);
+    digitalWrite(DISPLAY_BACKLIGHT_PIN, HIGH);
 }
 
 int ind = 0;
 
 void loop()
 {
-    TS_Point point = touchscreen.getPoint();
+    bool is_touched = touchscreen.touched();
+    TS_Point point(0, 0, 0);
+    
+    if (is_touched) {
+        point = touchscreen.getPoint();
 #if !defined(MOCK_ARDUINO)
-    point = TS_Point(point.y, 239 - point.x, point.z);
+        point = TS_Point(319 - point.y, point.x, point.z);
 #endif
-    ui.handleTouchInput(touchscreen.touched(), point.x, point.y);
+    }
+    ui.handleTouchInput(is_touched, point.x, point.y);
 
 //    pager.setPage(page);
 //    topBar.setIndicatorState(ind, false);
