@@ -814,6 +814,9 @@ class Pager {
 
         void setPage(Page &page);
 
+        bool isCurrentPage(Page &page)
+        { return m_current_page == &page; }
+
     private:
         UI &m_ui;
         int16_t m_x;
@@ -939,9 +942,79 @@ const Hotspot PROGMEM PatchOptionsPage::s_hotspots[NumberOfPatchOptionsPageHotsp
 
 
 enum {
+    DebugBackButtonHotspotId = 1,
+    NumberOfDebugPageHotspots
+};
+
+class DebugPage: public Page {
+    public:
+        DebugPage(Pager &pager)
+        : Page(pager)
+        {
+            setHotspots(NumberOfDebugPageHotspots, s_hotspots);
+        }
+
+        virtual void draw()
+        {
+            setColour(COLOUR_WHITE);
+            drawGraphic(GRAPHIC_SMALL_BUTTON_OUTLINE, 20, PAGE_HEADER_Y);
+            drawGraphic(GRAPHIC_LEFT_CHEVRON, 28, PAGE_HEADER_Y + 6);
+            setTextSize(2);
+            drawText(65, PAGE_HEADER_Y + 5, "Debug");
+
+            setColour(COLOUR_WHITE);
+            setTextSize(1);
+            drawText(14, 115, "Control Readings");
+            setTextSize(1);
+            setColour(COLOUR_BRIGHT_GREEN);
+            drawText(14, 130,  "  00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15");
+            drawText(14, 145, "A");
+            drawText(14, 160, "B");
+            drawText(14, 175, "C");
+            drawText(14, 190, "D");
+
+            for (int mux = 0; mux < 4; ++ mux) {
+                for (int control = 0; control < 16; ++ control) {
+                    if ((mux < 3) || (control < 8)) {
+                        updateControlValue(mux, control, 0x3F);
+                    }
+                }
+            }
+        }
+
+        virtual void onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y);
+
+        void updateControlValue(uint8_t mux, uint8_t channel, uint8_t value)
+        {
+            ASSERT(mux < 4);
+            ASSERT(channel < 16);
+            ASSERT((mux < 3) || (channel < 8));
+
+            int x = 26 + (channel * 18);
+            int y = 145 + (mux * 15);
+            setColour(COLOUR_BLACK);
+            fillRectangle(x, y, 14, 8);
+            setColour(COLOUR_YELLOW);
+            setCursor(x, y);
+            if (value < 0x10) print("0");
+            print(value, HEX);
+        }
+
+    private:
+        static const Hotspot PROGMEM s_hotspots[NumberOfDebugPageHotspots];
+};
+
+const Hotspot PROGMEM DebugPage::s_hotspots[NumberOfDebugPageHotspots] = {
+    { .id = DebugBackButtonHotspotId,   .x = 0,   .y = 0,  .width = 70, .height = 50  }
+};
+
+
+
+enum {
     SettingsBackButtonHotspotId = 1,
     SettingsMidiChannelDecrementHotspotId,
     SettingsMidiChannelIncrementHotspotId,
+    SettingsDebugHotspotId,
     NumberOfSettingsPageHotspots
 };
 
@@ -967,23 +1040,27 @@ class SettingsPage: public Page {
             //drawText(200, 76, "Secondary");
             drawGraphic(GRAPHIC_MIDI_CONNECTOR, 75, 98);
             //drawGraphic(GRAPHIC_MIDI_CONNECTOR, 210, 98);
-            setTextSize(2);
 
             drawMidiChannel();
             drawGraphic(GRAPHIC_LEFT_CHEVRON, 50, 108);
             drawGraphic(GRAPHIC_RIGHT_CHEVRON, 124, 108);
+
+            setTextSize(1);
+            drawText(275, 177, "Debug");
 
             // Hotspots
             setColour(COLOUR_DARK_RED);
             drawRectangle(0,   0,  70, 50);
             drawRectangle(30,  90, 50, 50);
             drawRectangle(102, 90, 50, 50);
-            drawRectangle(165, 90, 50, 50);
-            drawRectangle(237, 90, 50, 50);
+            //drawRectangle(165, 90, 50, 50);
+            //drawRectangle(237, 90, 50, 50);
+            drawRectangle(270, 160, 40, 40);
         }
 
         void drawMidiChannel()
         {
+            setTextSize(2);
             setColour(COLOUR_WHITE);
             setCursor(80, 146);
             if (m_midi_channel < 9) print("0");
@@ -998,9 +1075,10 @@ class SettingsPage: public Page {
 };
 
 const Hotspot PROGMEM SettingsPage::s_hotspots[NumberOfSettingsPageHotspots] = {
-    { .id = SettingsBackButtonHotspotId,            .x = 0,   .y = 0,  .width = 70, .height = 50 },
-    { .id = SettingsMidiChannelDecrementHotspotId,  .x = 30,  .y = 90, .width = 50, .height = 50 },
-    { .id = SettingsMidiChannelIncrementHotspotId,  .x = 102, .y = 90, .width = 50, .height = 50 }
+    { .id = SettingsBackButtonHotspotId,            .x = 0,   .y = 0,   .width = 70, .height = 50 },
+    { .id = SettingsMidiChannelDecrementHotspotId,  .x = 30,  .y = 90,  .width = 50, .height = 50 },
+    { .id = SettingsMidiChannelIncrementHotspotId,  .x = 102, .y = 90,  .width = 50, .height = 50 },
+    { .id = SettingsDebugHotspotId,                 .x = 270, .y = 160, .width = 40, .height = 40 }
 };
 
 
@@ -1128,6 +1206,7 @@ Pager pager(ui, 0, 24, 320, 216);
 MainPage page(pager);
 PatchOptionsPage patch_options_page(pager);
 SettingsPage settings_page(pager);
+DebugPage debug_page(pager);
 
 
 void MainPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y)
@@ -1164,10 +1243,19 @@ void PatchOptionsPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int
 
 void SettingsPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y)
 {
-    //if (type == TouchStartEvent) {
-    if ((type == TouchTapEvent) && (hotspot_id == SettingsBackButtonHotspotId)) {
-        // TODO: Save changes to EEPROM
-        pager.setPage(page);
+    if (type == TouchTapEvent) {
+        switch (hotspot_id) {
+            case SettingsBackButtonHotspotId:
+                // TODO: Save changes to EEPROM
+                pager.setPage(page);
+                break;
+
+            case SettingsDebugHotspotId:
+                // TODO
+                //ASSERT(false);
+                pager.setPage(debug_page);
+                break;
+        };
     } else if (type == TouchStartEvent) {
         switch (hotspot_id) {
             case SettingsMidiChannelDecrementHotspotId:
@@ -1190,6 +1278,14 @@ void SettingsPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t
                 }
                 break;
         };
+    }
+}
+
+void DebugPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y)
+{
+    if ((type == TouchTapEvent) && (hotspot_id == DebugBackButtonHotspotId)) {
+        pager.setPage(settings_page);
+    } else if (type == TouchStartEvent) {
     }
 }
 
@@ -1231,6 +1327,8 @@ void setup()
     digitalWrite(DISPLAY_BACKLIGHT_PIN, HIGH);
 }
 
+uint8_t xx = 0;
+
 void loop()
 {
     bool is_touched = touchscreen.touched();
@@ -1243,4 +1341,10 @@ void loop()
 #endif
     }
     ui.handleTouchInput(is_touched, point.x, point.y);
+
+    if (pager.isCurrentPage(debug_page)) {
+        //ASSERT(false);
+        debug_page.updateControlValue(1, 1, xx);
+        ++ xx;
+    }
 }

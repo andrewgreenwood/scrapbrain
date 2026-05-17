@@ -21,8 +21,10 @@ void ReportFault(const char *title, const char *message)
     debug_screen->println("");
     debug_screen->print(message);
 
+#if !defined(MOCK_ARDUINO)
     // Halt further processing
     for (;;) { }
+#endif
 }
 
 void ReportAssertionFailure(const char *condition, const char *file, unsigned int line)
@@ -38,12 +40,15 @@ void ReportAssertionFailure(const char *condition, const char *file, unsigned in
     debug_screen->setTextSize(1);
     debug_screen->println("");
     debug_screen->println(condition);
+    debug_screen->println("");
     debug_screen->print("at ");
     debug_screen->print(file);
     debug_screen->print("(");
     debug_screen->print(line);
     debug_screen->println(")");
 
+#if !defined(MOCK_ARDUINO)
     // Halt further processing
     for (;;) { }
+#endif
 }
