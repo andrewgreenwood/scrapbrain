@@ -88,17 +88,3 @@ void UI::handleTouchInput(bool touched, int16_t x, int16_t y)
     m_last_touch_x = x;
     m_last_touch_y = y;
 }
-
-
-void UI::showError(const char *title, const char *message)
-{
-    m_screen.fillRect(0, 0, width() - 1, height() - 1, COLOUR_DARK_RED);
-    m_screen.setTextColor(COLOUR_WHITE);
-    m_screen.setTextSize(2);
-    m_screen.setCursor(0, 0);
-    m_screen.println(title);
-    m_screen.setTextSize(1);
-    m_screen.println("");
-    m_screen.print(message);
-}
-

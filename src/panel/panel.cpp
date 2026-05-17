@@ -29,6 +29,9 @@
         A5  I2C SCL (for touchscreen)
 */
 
+// Enable asserts
+#define DEBUG 1
+
 #define DISPLAY_TCS_PIN         2
 #define DISPLAY_DC_PIN          3
 #define DISPLAY_BACKLIGHT_PIN   9
@@ -43,6 +46,7 @@
 #endif
 
 #include "panelkit.h"
+#include "debug.h"
 
 #ifdef MOCK_ARDUINO
 MockScreen screen(240, 320);
@@ -51,8 +55,6 @@ MockTouchScreen touchscreen;
 Adafruit_ILI9341 screen(DISPLAY_TCS_PIN, DISPLAY_DC_PIN);
 Adafruit_FT6206 touchscreen;
 #endif
-
-UI ui(screen);
 
 #define BACKGROUND_COLOUR           0x1082
 #define TOPBAR_COLOUR               0x0000
@@ -746,7 +748,11 @@ const uint8_t* const graphics[] PROGMEM = {
 };
 
 
-
+//
+// The title bar and status indicators
+// Indicators 0 and 1 were originally going to be 2x gate CVs but were dropped from the design
+// Indicator 2 is for MIDI input
+//
 class TopBar: public Panel {
     public:
         TopBar(UI &ui)
@@ -762,6 +768,7 @@ class TopBar: public Panel {
         {
             int16_t x[3] = { 151, 202, 263 };
 
+            ASSERT(indicator >= 0 && indicator <= 2);
             if ((indicator < 0) || (indicator > 2)) {
                 return;
             }
@@ -788,21 +795,19 @@ class TopBar: public Panel {
             setCursor(8, 8);
             print("Scrap Brain YM2612");
 
-            drawGraphic(GRAPHIC_INDICATOR_OUTLINE, 150, 8);
-            setCursor(163, 8);
-            print("MIDI");
+            //drawGraphic(GRAPHIC_INDICATOR_OUTLINE, 150, 8);
+            //setCursor(163, 8);
+            //print("Unused");
 
-            drawGraphic(GRAPHIC_INDICATOR_OUTLINE, 201, 8);
-            setCursor(214, 8);
-            print("Gate 1");
+            //drawGraphic(GRAPHIC_INDICATOR_OUTLINE, 201, 8);
+            //setCursor(214, 8);
+            //print("Unused");
 
             drawGraphic(GRAPHIC_INDICATOR_OUTLINE, 262, 8);
             setCursor(275, 8);
-            print("Gate 2");
+            print("MIDI");
         }
 };
-
-
 
 class Page;
 
@@ -830,7 +835,6 @@ class Pager {
         int16_t m_height;
         Page *m_current_page;
 };
-
 
 class Page: public Panel {
     friend class Pager;
@@ -877,10 +881,7 @@ void Pager::setPage(Page &page)
 }
 
 
-
-
 #define PAGE_HEADER_Y   11
-
 
 enum {
     PatchOptionsPageBackButtonHotspotId = 1,
@@ -1099,6 +1100,7 @@ class MainPage: public Page {
                 GRAPHIC_ALGORITHM_8_BIG
             };            
 
+            ASSERT(m_algorithm < 8);
             drawGraphic(graphic_ids[m_algorithm], 85, 12);
 
             int selection_x = m_algorithm < 4 ? 18 : 264;
@@ -1150,12 +1152,12 @@ class Splash: public Panel {
 };
 
 
+UI ui(screen);
 TopBar topBar(ui);
 Pager pager(ui, 0, 24, 320, 216);
 MainPage page(pager);
 PatchOptionsPage patch_options_page(pager);
 SettingsPage settings_page(pager);
-
 
 
 void MainPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y)
@@ -1248,13 +1250,14 @@ void setup()
     pinMode(DISPLAY_BACKLIGHT_PIN, OUTPUT);
     digitalWrite(DISPLAY_BACKLIGHT_PIN, LOW);
 
-    ui.setGraphicsTable(graphics);      // TODO
-    //ui.setBackgroundColour(BACKGROUND_COLOUR);
-    //setScreen(screen);
+    ui.setGraphicsTable(graphics);
+
     screen.begin();
-    screen.setRotation(1);      // 1
-    //screen.fillScreen(BACKGROUND_COLOUR);
-    //Panel::setScreen(screen);
+    screen.setRotation(1);
+
+#if defined(DEBUG)
+    SetDebugScreen(&screen);
+#endif
 
     ui.begin(BACKGROUND_COLOUR);
 
@@ -1280,8 +1283,6 @@ void setup()
     digitalWrite(DISPLAY_BACKLIGHT_PIN, HIGH);
 }
 
-int ind = 0;
-
 void loop()
 {
     bool is_touched = touchscreen.touched();
@@ -1294,23 +1295,4 @@ void loop()
 #endif
     }
     ui.handleTouchInput(is_touched, point.x, point.y);
-
-//    pager.setPage(page);
-//    topBar.setIndicatorState(ind, false);
-//    delay(500);
-//    pager.setPage(page2);
-//    topBar.setIndicatorState(ind, true);
-//    delay(500);
-
-    ++ ind;
-    ind %= 3;
-
-/*
-    topBar.show();
-    pager.setPage(page);
-    delay(500);
-    topBar.hide();
-    pager.setPage(page2);
-    delay(500);
-    */
 }

@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <Adafruit_GFX.h>
+#include "debug.h"
 
 // Core graphic IDs used for actual drawing operations
 enum {
@@ -105,11 +106,13 @@ class UI {
 
         void setGraphicsTable(const uint8_t * const table[])
         {
+            ASSERT(m_graphics_table);
             m_graphics_table = table;
         }
 
         const uint8_t * const getGraphic(uint8_t graphic_id) const
         {
+            ASSERT(graphic_id >= GRAPHIC_FIRST_ID);
             return (const uint8_t *)pgm_read_ptr(&(m_graphics_table[graphic_id - GRAPHIC_FIRST_ID]));
         }
 
@@ -126,8 +129,6 @@ class UI {
         Panel *getPanelAt(int16_t x, int16_t y) const;
 
         void handleTouchInput(bool touched, int16_t x, int16_t y);
-
-        void showError(const char *title, const char *message);
 
     private:
         Adafruit_GFX &m_screen;
@@ -169,6 +170,7 @@ class Panel: public Print {
             } else {
                 Panel *panel = m_ui.m_first_panel;
                 while (panel->m_next_panel != this) {
+                    ASSERT(panel->m_next_panel);
                     panel = panel->m_next_panel;
                 }
                 panel->m_next_panel = m_next_panel;
@@ -195,6 +197,7 @@ class Panel: public Print {
         {            
             Hotspot hotspot;
 
+            ASSERT(m_number_of_hospots == 0 || m_hotspots);
             for (int i = 0; i < m_number_of_hotspots; ++ i) {
                 hotspot.x = pgm_read_word(&m_hotspots[i].x);
                 if (x < hotspot.x) continue;
