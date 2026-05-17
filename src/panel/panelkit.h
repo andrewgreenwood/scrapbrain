@@ -197,7 +197,7 @@ class Panel: public Print {
         {            
             Hotspot hotspot;
 
-            ASSERT(m_number_of_hospots == 0 || m_hotspots);
+            ASSERT(m_number_of_hotspots == 0 || m_hotspots);
             for (int i = 0; i < m_number_of_hotspots; ++ i) {
                 hotspot.x = pgm_read_word(&m_hotspots[i].x);
                 if (x < hotspot.x) continue;
