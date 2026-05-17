@@ -833,7 +833,7 @@ class Page: public Panel {
     public:
         Page(Pager &pager)
         : Panel(pager.m_ui, pager.m_x, pager.m_y, pager.m_width, pager.m_height),
-          /*m_pager(pager), */ m_number_of_hotspots(0), m_hotspots(NULL)
+          m_number_of_hotspots(0), m_hotspots(NULL)
         { }
 
         virtual void draw()
@@ -843,11 +843,6 @@ class Page: public Panel {
             print((uintptr_t)this);
         }
 
-//        virtual void onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y)
-//        {
-//            printf("Page %p event type %d hotspot %d x %d y %d\n", this, type, hotspot_id, x, y);
-//        }
-
     protected:
         virtual void setHotspots(uint16_t count, const Hotspot hotspots[])
         {
@@ -856,7 +851,6 @@ class Page: public Panel {
         }
 
     private:
-        //Pager &m_pager;
         int16_t m_number_of_hotspots;
         const Hotspot *m_hotspots;
 };
@@ -874,17 +868,48 @@ void Pager::setPage(Page &page)
 
 #define PAGE_HEADER_Y   11
 
-enum {
-    PatchOptionsPageBackButtonHotspotId = 1,
-    NumberOfPatchOptionsPageHotspots
+
+class PatchSelectPage: public Page {
+    public:
+        PatchSelectPage(Pager &pager)
+        : Page(pager)
+        {
+            setHotspots(NumberOfHotspots, s_hotspots);
+        }
+
+        virtual void draw()
+        {
+            setColour(COLOUR_WHITE);
+            drawGraphic(GRAPHIC_SMALL_BUTTON_OUTLINE, 20, PAGE_HEADER_Y);
+            drawGraphic(GRAPHIC_LEFT_CHEVRON, 28, PAGE_HEADER_Y + 6);
+            setTextSize(2);
+            drawText(65, PAGE_HEADER_Y + 5, "Patch");
+        }
+
+        virtual void onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y);
+
+    private:
+        enum {
+            BackButtonHotspotId = 1,
+        //    PatchOptionsPagePatch1ButtonHotspotId,
+        //    PatchOptionsPagePatch2ButtonHotspotId,
+            NumberOfHotspots
+        };
+
+        static const Hotspot PROGMEM s_hotspots[NumberOfHotspots];
 };
+
+const Hotspot PROGMEM PatchSelectPage::s_hotspots[PatchSelectPage::NumberOfHotspots] = {
+    { .id = PatchSelectPage::BackButtonHotspotId,   .x = 0,   .y = 0,  .width = 70, .height = 50  }
+};
+
 
 class PatchOptionsPage: public Page {
     public:
         PatchOptionsPage(Pager &pager)
         : Page(pager)
         {
-            setHotspots(NumberOfPatchOptionsPageHotspots, s_hotspots);
+            setHotspots(NumberOfPageHotspots, s_hotspots);
         }
 
         virtual void draw()
@@ -924,26 +949,25 @@ class PatchOptionsPage: public Page {
         virtual void onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y);
 
     private:
-        static const Hotspot PROGMEM s_hotspots[NumberOfPatchOptionsPageHotspots];
+        enum {
+            BackButtonHotspotId = 1,
+            NumberOfPageHotspots
+        };
+
+    static const Hotspot PROGMEM s_hotspots[NumberOfPageHotspots];
 };
 
-const Hotspot PROGMEM PatchOptionsPage::s_hotspots[NumberOfPatchOptionsPageHotspots] = {
-    { .id = PatchOptionsPageBackButtonHotspotId,         .x = 0,   .y = 0,  .width = 70, .height = 50  }
+const Hotspot PROGMEM PatchOptionsPage::s_hotspots[PatchOptionsPage::NumberOfPageHotspots] = {
+    { .id = PatchOptionsPage::BackButtonHotspotId,         .x = 0,   .y = 0,  .width = 70, .height = 50  }
 };
 
-
-enum {
-    DebugBackButtonHotspotId = 1,
-    DebugNoteTriggerButtonId,
-    NumberOfDebugPageHotspots
-};
 
 class DebugPage: public Page {
     public:
         DebugPage(Pager &pager)
         : Page(pager)
         {
-            setHotspots(NumberOfDebugPageHotspots, s_hotspots);
+            setHotspots(NumberOfHotspots, s_hotspots);
         }
 
         virtual void draw()
@@ -1012,29 +1036,27 @@ class DebugPage: public Page {
         }
 
     private:
-        static const Hotspot PROGMEM s_hotspots[NumberOfDebugPageHotspots];
+        enum {
+            BackButtonHotspotId = 1,
+            NoteTriggerButtonId,
+            NumberOfHotspots
+        };
+
+        static const Hotspot PROGMEM s_hotspots[NumberOfHotspots];
 };
 
-const Hotspot PROGMEM DebugPage::s_hotspots[NumberOfDebugPageHotspots] = {
-    { .id = DebugBackButtonHotspotId,   .x = 0,   .y = 0,  .width = 70, .height = 50  }
+const Hotspot PROGMEM DebugPage::s_hotspots[DebugPage::NumberOfHotspots] = {
+    { .id = DebugPage::BackButtonHotspotId,   .x = 0,   .y = 0,  .width = 70, .height = 50  }
 };
 
 
-
-enum {
-    SettingsBackButtonHotspotId = 1,
-    SettingsMidiChannelDecrementHotspotId,
-    SettingsMidiChannelIncrementHotspotId,
-    SettingsDebugHotspotId,
-    NumberOfSettingsPageHotspots
-};
 
 class SettingsPage: public Page {
     public:
         SettingsPage(Pager &pager)
         : Page(pager), m_midi_channel(0)
         {
-            setHotspots(NumberOfSettingsPageHotspots, s_hotspots);
+            setHotspots(NumberOfPageHotspots, s_hotspots);
             // TODO: Read from EEPROM
         }
 
@@ -1073,37 +1095,32 @@ class SettingsPage: public Page {
 
     private:
         uint8_t m_midi_channel;
-        static const Hotspot PROGMEM s_hotspots[NumberOfSettingsPageHotspots];
+
+        enum {
+            BackButtonHotspotId = 1,
+            MidiChannelDecrementButtonHotspotId,
+            MidiChannelIncrementButtonHotspotId,
+            DebugButtonHotspotId,
+            NumberOfPageHotspots
+        };
+
+        static const Hotspot PROGMEM s_hotspots[NumberOfPageHotspots];
 };
 
-const Hotspot PROGMEM SettingsPage::s_hotspots[NumberOfSettingsPageHotspots] = {
-    { .id = SettingsBackButtonHotspotId,            .x = 0,   .y = 0,   .width = 70, .height = 50 },
-    { .id = SettingsMidiChannelDecrementHotspotId,  .x = 30,  .y = 90,  .width = 50, .height = 50 },
-    { .id = SettingsMidiChannelIncrementHotspotId,  .x = 102, .y = 90,  .width = 50, .height = 50 },
-    { .id = SettingsDebugHotspotId,                 .x = 270, .y = 160, .width = 40, .height = 40 }
+const Hotspot PROGMEM SettingsPage::s_hotspots[SettingsPage::NumberOfPageHotspots] = {
+    { .id = SettingsPage::BackButtonHotspotId,                  .x = 0,   .y = 0,   .width = 70, .height = 50 },
+    { .id = SettingsPage::MidiChannelDecrementButtonHotspotId,  .x = 30,  .y = 90,  .width = 50, .height = 50 },
+    { .id = SettingsPage::MidiChannelIncrementButtonHotspotId,  .x = 102, .y = 90,  .width = 50, .height = 50 },
+    { .id = SettingsPage::DebugButtonHotspotId,                 .x = 270, .y = 160, .width = 40, .height = 40 }
 };
 
-
-enum {
-    Algorithm1HotspotId = 1,
-    Algorithm2HotspotId,
-    Algorithm3HotspotId,
-    Algorithm4HotspotId,
-    Algorithm5HotspotId,
-    Algorithm6HotspotId,
-    Algorithm7HotspotId,
-    Algorithm8HotspotId,
-    PatchButtonHotspotId,
-    SettingsButtonHotspotId,
-    NumberOfMainPageHotspots
-};
 
 class MainPage: public Page {
     public:
         MainPage(Pager &pager)
         : Page(pager), m_algorithm(0)
         {
-            setHotspots(NumberOfMainPageHotspots, s_hotspots);
+            setHotspots(NumberOfHotspots, s_hotspots);
         }
 
         virtual void draw()
@@ -1162,20 +1179,35 @@ class MainPage: public Page {
         virtual void onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y);
 
         uint8_t m_algorithm;
-        static const Hotspot PROGMEM s_hotspots[NumberOfMainPageHotspots];
+
+        enum {
+            Algorithm1HotspotId = 1,
+            Algorithm2HotspotId,
+            Algorithm3HotspotId,
+            Algorithm4HotspotId,
+            Algorithm5HotspotId,
+            Algorithm6HotspotId,
+            Algorithm7HotspotId,
+            Algorithm8HotspotId,
+            PatchButtonHotspotId,
+            SettingsButtonHotspotId,
+            NumberOfHotspots
+        };
+
+        static const Hotspot PROGMEM s_hotspots[NumberOfHotspots];
 };
 
-const Hotspot PROGMEM MainPage::s_hotspots[NumberOfMainPageHotspots] = {
-    { .id = Algorithm1HotspotId,     .x = 0,   .y = 9,   .width = 75, .height = 48 },
-    { .id = Algorithm2HotspotId,     .x = 0,   .y = 57,  .width = 75, .height = 48 },
-    { .id = Algorithm3HotspotId,     .x = 0,   .y = 105, .width = 75, .height = 48 },
-    { .id = Algorithm4HotspotId,     .x = 0,   .y = 153, .width = 75, .height = 48 },
-    { .id = Algorithm5HotspotId,     .x = 244, .y = 9,   .width = 75, .height = 48 },
-    { .id = Algorithm6HotspotId,     .x = 244, .y = 57,  .width = 75, .height = 48 },
-    { .id = Algorithm7HotspotId,     .x = 244, .y = 105, .width = 75, .height = 48 },
-    { .id = Algorithm8HotspotId,     .x = 244, .y = 153, .width = 75, .height = 48 },
-    { .id = PatchButtonHotspotId,    .x = 83,  .y = 156, .width = 48, .height = 60 },
-    { .id = SettingsButtonHotspotId, .x = 188, .y = 156, .width = 48, .height = 60 }
+const Hotspot PROGMEM MainPage::s_hotspots[MainPage::NumberOfHotspots] = {
+    { .id = MainPage::Algorithm1HotspotId,     .x = 0,   .y = 9,   .width = 75, .height = 48 },
+    { .id = MainPage::Algorithm2HotspotId,     .x = 0,   .y = 57,  .width = 75, .height = 48 },
+    { .id = MainPage::Algorithm3HotspotId,     .x = 0,   .y = 105, .width = 75, .height = 48 },
+    { .id = MainPage::Algorithm4HotspotId,     .x = 0,   .y = 153, .width = 75, .height = 48 },
+    { .id = MainPage::Algorithm5HotspotId,     .x = 244, .y = 9,   .width = 75, .height = 48 },
+    { .id = MainPage::Algorithm6HotspotId,     .x = 244, .y = 57,  .width = 75, .height = 48 },
+    { .id = MainPage::Algorithm7HotspotId,     .x = 244, .y = 105, .width = 75, .height = 48 },
+    { .id = MainPage::Algorithm8HotspotId,     .x = 244, .y = 153, .width = 75, .height = 48 },
+    { .id = MainPage::PatchButtonHotspotId,    .x = 83,  .y = 156, .width = 48, .height = 60 },
+    { .id = MainPage::SettingsButtonHotspotId, .x = 188, .y = 156, .width = 48, .height = 60 }
 };
 
 
@@ -1207,6 +1239,7 @@ TopBar top_bar(ui);
 Pager pager(ui, 0, 24, 320, 216);
 MainPage page(pager);
 PatchOptionsPage patch_options_page(pager);
+PatchSelectPage patch_select_page(pager);
 SettingsPage settings_page(pager);
 DebugPage debug_page(pager);
 
@@ -1238,8 +1271,16 @@ void MainPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, 
 
 void PatchOptionsPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y)
 {
-    if ((type == TouchTapEvent) && (hotspot_id == PatchOptionsPageBackButtonHotspotId)) {
+    if ((type == TouchTapEvent) && (hotspot_id == BackButtonHotspotId)) {
         pager.setPage(page);
+    }
+}
+
+void PatchSelectPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y)
+{
+    if ((type == TouchTapEvent) && (hotspot_id == BackButtonHotspotId)) {
+        pager.setPage(patch_options_page);
+    } else if (type == TouchStartEvent) {
     }
 }
 
@@ -1247,12 +1288,12 @@ void SettingsPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t
 {
     if (type == TouchTapEvent) {
         switch (hotspot_id) {
-            case SettingsBackButtonHotspotId:
+            case BackButtonHotspotId:
                 // TODO: Save changes to EEPROM
                 pager.setPage(page);
                 break;
 
-            case SettingsDebugHotspotId:
+            case DebugButtonHotspotId:
                 // TODO
                 //ASSERT(false);
                 pager.setPage(debug_page);
@@ -1260,7 +1301,7 @@ void SettingsPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t
         };
     } else if (type == TouchStartEvent) {
         switch (hotspot_id) {
-            case SettingsMidiChannelDecrementHotspotId:
+            case MidiChannelDecrementButtonHotspotId:
                 if (m_midi_channel > 0) {
                     forceBackgroundColour(true);
                     drawMidiChannel();
@@ -1270,7 +1311,7 @@ void SettingsPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t
                 }
                 break;
 
-            case SettingsMidiChannelIncrementHotspotId:
+            case MidiChannelIncrementButtonHotspotId:
                 if (m_midi_channel < 15) {
                     forceBackgroundColour(true);
                     drawMidiChannel();
@@ -1285,7 +1326,7 @@ void SettingsPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t
 
 void DebugPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y)
 {
-    if ((type == TouchTapEvent) && (hotspot_id == DebugBackButtonHotspotId)) {
+    if ((type == TouchTapEvent) && (hotspot_id == BackButtonHotspotId)) {
         pager.setPage(settings_page);
     } else if (type == TouchStartEvent) {
     }
