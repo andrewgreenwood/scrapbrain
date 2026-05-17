@@ -749,9 +749,7 @@ const uint8_t* const graphics[] PROGMEM = {
 
 
 //
-// The title bar and status indicators
-// Indicators 0 and 1 were originally going to be 2x gate CVs but were dropped from the design
-// Indicator 2 is for MIDI input
+// The title bar and MIDI indicator state
 //
 class TopBar: public Panel {
     public:
@@ -764,20 +762,15 @@ class TopBar: public Panel {
         {
         }
 
-        void setIndicatorState(int8_t indicator, bool state)
+        void setMidiIndicatorState(bool state)
         {
-            int16_t x[3] = { 151, 202, 263 };
-
-            ASSERT(indicator >= 0 && indicator <= 2);
-            if ((indicator < 0) || (indicator > 2)) {
-                return;
-            }
+            int16_t x = 273;
 
             if (state) {
-                drawGraphic(GRAPHIC_GREEN_INDICATOR, x[indicator], 9);
+                drawGraphic(GRAPHIC_GREEN_INDICATOR, x, 9);
             } else {
                 setColour(BACKGROUND_COLOUR);
-                fillRectangle(x[indicator], 9, 5, 5);
+                fillRectangle(x, 9, 5, 5);
             }
         }
 
@@ -792,19 +785,13 @@ class TopBar: public Panel {
             setTextSize(1);
             setColour(COLOUR_WHITE);
 
-            setCursor(8, 8);
+            // Title
+            setCursor(12, 8);
             print("Scrap Brain YM2612");
 
-            //drawGraphic(GRAPHIC_INDICATOR_OUTLINE, 150, 8);
-            //setCursor(163, 8);
-            //print("Unused");
-
-            //drawGraphic(GRAPHIC_INDICATOR_OUTLINE, 201, 8);
-            //setCursor(214, 8);
-            //print("Unused");
-
-            drawGraphic(GRAPHIC_INDICATOR_OUTLINE, 262, 8);
-            setCursor(275, 8);
+            // MIDI indicator
+            drawGraphic(GRAPHIC_INDICATOR_OUTLINE, 272, 8);
+            setCursor(285, 8);
             print("MIDI");
         }
 };
@@ -842,7 +829,7 @@ class Page: public Panel {
     public:
         Page(Pager &pager)
         : Panel(pager.m_ui, pager.m_x, pager.m_y, pager.m_width, pager.m_height),
-          m_pager(pager),  m_number_of_hotspots(0), m_hotspots(NULL)
+          /*m_pager(pager), */ m_number_of_hotspots(0), m_hotspots(NULL)
         { }
 
         virtual void draw()
@@ -865,7 +852,7 @@ class Page: public Panel {
         }
 
     private:
-        Pager &m_pager;
+        //Pager &m_pager;
         int16_t m_number_of_hotspots;
         const Hotspot *m_hotspots;
 };
@@ -952,20 +939,18 @@ const Hotspot PROGMEM PatchOptionsPage::s_hotspots[NumberOfPatchOptionsPageHotsp
 
 
 enum {
-    MidiChannelBackButtonHotspotId = 1,
-    PrimaryMidiChannelDecrementHotspotId,
-    PrimaryMidiChannelIncrementHotspotId,
-    SecondaryMidiChannelDecrementHotspotId,
-    SecondaryMidiChannelIncrementHotspotId,
-    NumberOfMidiChannelPageHotspots
+    SettingsBackButtonHotspotId = 1,
+    SettingsMidiChannelDecrementHotspotId,
+    SettingsMidiChannelIncrementHotspotId,
+    NumberOfSettingsPageHotspots
 };
 
 class SettingsPage: public Page {
     public:
         SettingsPage(Pager &pager)
-        : Page(pager), m_primary_channel(0), m_secondary_channel(1)
+        : Page(pager), m_midi_channel(0)
         {
-            setHotspots(NumberOfMidiChannelPageHotspots, s_hotspots);
+            setHotspots(NumberOfSettingsPageHotspots, s_hotspots);
             // TODO: Read from EEPROM
         }
 
@@ -975,22 +960,18 @@ class SettingsPage: public Page {
             drawGraphic(GRAPHIC_SMALL_BUTTON_OUTLINE, 20, PAGE_HEADER_Y);
             drawGraphic(GRAPHIC_LEFT_CHEVRON, 28, PAGE_HEADER_Y + 6);
             setTextSize(2);
-            drawText(65, PAGE_HEADER_Y + 5, "MIDI Channels");
+            drawText(65, PAGE_HEADER_Y + 5, "Settings");
 
             setTextSize(1);
-            drawText(70, 76, "Primary");
-            drawText(200, 76, "Secondary");
+            drawText(55, 76, "MIDI Channel");
+            //drawText(200, 76, "Secondary");
             drawGraphic(GRAPHIC_MIDI_CONNECTOR, 75, 98);
-            drawGraphic(GRAPHIC_MIDI_CONNECTOR, 210, 98);
+            //drawGraphic(GRAPHIC_MIDI_CONNECTOR, 210, 98);
             setTextSize(2);
 
-            drawPrimaryChannel();
+            drawMidiChannel();
             drawGraphic(GRAPHIC_LEFT_CHEVRON, 50, 108);
             drawGraphic(GRAPHIC_RIGHT_CHEVRON, 124, 108);
-
-            drawSecondaryChannel();
-            drawGraphic(GRAPHIC_LEFT_CHEVRON, 185, 108);
-            drawGraphic(GRAPHIC_RIGHT_CHEVRON, 259, 108);
 
             // Hotspots
             setColour(COLOUR_DARK_RED);
@@ -1001,36 +982,25 @@ class SettingsPage: public Page {
             drawRectangle(237, 90, 50, 50);
         }
 
-        void drawPrimaryChannel()
+        void drawMidiChannel()
         {
             setColour(COLOUR_WHITE);
             setCursor(80, 146);
-            if (m_primary_channel < 9) print("0");
-            print(m_primary_channel + 1);
-        }
-
-        void drawSecondaryChannel()
-        {
-            setColour(COLOUR_WHITE);
-            setCursor(215, 146);
-            if (m_secondary_channel < 9) print("0");
-            print(m_secondary_channel + 1);
+            if (m_midi_channel < 9) print("0");
+            print(m_midi_channel + 1);
         }
         
         virtual void onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y);
 
     private:
-        uint8_t m_primary_channel;
-        uint8_t m_secondary_channel;
-        static const Hotspot PROGMEM s_hotspots[NumberOfMidiChannelPageHotspots];
+        uint8_t m_midi_channel;
+        static const Hotspot PROGMEM s_hotspots[NumberOfSettingsPageHotspots];
 };
 
-const Hotspot PROGMEM SettingsPage::s_hotspots[NumberOfMidiChannelPageHotspots] = {
-    { .id = MidiChannelBackButtonHotspotId,         .x = 0,   .y = 0,  .width = 70, .height = 50  },
-    { .id = PrimaryMidiChannelDecrementHotspotId,   .x = 30,  .y = 90, .width = 50, .height = 50 },
-    { .id = PrimaryMidiChannelIncrementHotspotId,   .x = 102, .y = 90, .width = 50, .height = 50 },
-    { .id = SecondaryMidiChannelDecrementHotspotId, .x = 165, .y = 90, .width = 50, .height = 50 },
-    { .id = SecondaryMidiChannelIncrementHotspotId, .x = 237, .y = 90, .width = 50, .height = 50 }
+const Hotspot PROGMEM SettingsPage::s_hotspots[NumberOfSettingsPageHotspots] = {
+    { .id = SettingsBackButtonHotspotId,            .x = 0,   .y = 0,  .width = 70, .height = 50 },
+    { .id = SettingsMidiChannelDecrementHotspotId,  .x = 30,  .y = 90, .width = 50, .height = 50 },
+    { .id = SettingsMidiChannelIncrementHotspotId,  .x = 102, .y = 90, .width = 50, .height = 50 }
 };
 
 
@@ -1195,53 +1165,31 @@ void PatchOptionsPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int
 void SettingsPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y)
 {
     //if (type == TouchStartEvent) {
-    if ((type == TouchTapEvent) && (hotspot_id == MidiChannelBackButtonHotspotId)) {
+    if ((type == TouchTapEvent) && (hotspot_id == SettingsBackButtonHotspotId)) {
         // TODO: Save changes to EEPROM
         pager.setPage(page);
     } else if (type == TouchStartEvent) {
         switch (hotspot_id) {
-            case PrimaryMidiChannelDecrementHotspotId:
-                if (m_primary_channel > 0) {
+            case SettingsMidiChannelDecrementHotspotId:
+                if (m_midi_channel > 0) {
                     forceBackgroundColour(true);
-                    drawPrimaryChannel();
+                    drawMidiChannel();
                     forceBackgroundColour(false);
-                    -- m_primary_channel;
-                    drawPrimaryChannel();
+                    -- m_midi_channel;
+                    drawMidiChannel();
                 }
                 break;
 
-            case PrimaryMidiChannelIncrementHotspotId:
-                if (m_primary_channel < 15) {
+            case SettingsMidiChannelIncrementHotspotId:
+                if (m_midi_channel < 15) {
                     forceBackgroundColour(true);
-                    drawPrimaryChannel();
+                    drawMidiChannel();
                     forceBackgroundColour(false);
-                    ++ m_primary_channel;
-                    drawPrimaryChannel();
-                }
-                break;
-
-            case SecondaryMidiChannelDecrementHotspotId:
-                if (m_secondary_channel > 0) {
-                    forceBackgroundColour(true);
-                    drawSecondaryChannel();
-                    forceBackgroundColour(false);
-                    -- m_secondary_channel;
-                    drawSecondaryChannel();
-                }
-                break;
-
-            case SecondaryMidiChannelIncrementHotspotId:
-                if (m_secondary_channel < 15) {
-                    forceBackgroundColour(true);
-                    drawSecondaryChannel();
-                    forceBackgroundColour(false);
-                    ++ m_secondary_channel;
-                    drawSecondaryChannel();
+                    ++ m_midi_channel;
+                    drawMidiChannel();
                 }
                 break;
         };
-    } else {
-        //printf("%d\n", hotspot_id);
     }
 }
 

@@ -82,6 +82,10 @@ void UI::handleTouchInput(bool touched, int16_t x, int16_t y)
                     }
                 }
                 break;
+
+            default:
+                ASSERT(false);
+                break;
         }
     }
 
