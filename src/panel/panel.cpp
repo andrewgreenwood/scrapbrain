@@ -66,7 +66,8 @@ Adafruit_FT6206 touchscreen;
 #define GREEN_INDICATOR_COLOUR      0x2589
 #define GREEN_INDICATOR_LOW_COLOUR  0x0000
 
-#define BUTTON_OUTLINE_COLOUR       0x0841
+#define BUTTON_OUTLINE_COLOUR       BACKGROUND_COLOUR
+// 0x0841
 
 enum {
     GRAPHIC_INDICATOR_OUTLINE = GRAPHIC_FIRST_ID,
@@ -894,16 +895,6 @@ class PatchOptionsPage: public Page {
             setTextSize(2);
             drawText(65, PAGE_HEADER_Y + 5, "Patch");
 
-            setColour(COLOUR_DARK_RED);
-            drawRectangle(0,   0,  70, 50);
-            drawRectangle(45,  70, 50, 75);
-            drawRectangle(105, 70, 50, 75);
-            drawRectangle(165, 70, 50, 75);
-            drawRectangle(225, 70, 50, 75);
-
-    //GRAPHIC_UP_ARROW_IMAGE,
-//    GRAPHIC_DOWN_ARROW_IMAGE,
-
             setTextSize(1);
             setColour(COLOUR_WHITE);
             drawText(55, 120, "Reset");
@@ -943,6 +934,7 @@ const Hotspot PROGMEM PatchOptionsPage::s_hotspots[NumberOfPatchOptionsPageHotsp
 
 enum {
     DebugBackButtonHotspotId = 1,
+    DebugNoteTriggerButtonId,
     NumberOfDebugPageHotspots
 };
 
@@ -956,12 +948,31 @@ class DebugPage: public Page {
 
         virtual void draw()
         {
+            // Page heading and back button
             setColour(COLOUR_WHITE);
             drawGraphic(GRAPHIC_SMALL_BUTTON_OUTLINE, 20, PAGE_HEADER_Y);
             drawGraphic(GRAPHIC_LEFT_CHEVRON, 28, PAGE_HEADER_Y + 6);
             setTextSize(2);
             drawText(65, PAGE_HEADER_Y + 5, "Debug");
 
+            // Buttons
+            setTextSize(1);
+            setColour(COLOUR_BRIGHT_GREEN);
+            drawRectangle(45, 50, 50, 50);
+            drawText(59, 70, "Note");
+
+            // Spare buttons
+            setColour(COLOUR_DARK_GREY);
+            drawRectangle(105, 50, 50, 50);
+            //drawText(34, 70, "-");
+
+            drawRectangle(165, 50, 50, 50);
+            //drawText(34, 70, "-");
+
+            drawRectangle(225, 50, 50, 50);
+//            drawText(34, 70, "-");
+
+            // Control readings
             setColour(COLOUR_WHITE);
             setTextSize(1);
             drawText(14, 115, "Control Readings");
@@ -1047,15 +1058,6 @@ class SettingsPage: public Page {
 
             setTextSize(1);
             drawText(275, 177, "Debug");
-
-            // Hotspots
-            setColour(COLOUR_DARK_RED);
-            drawRectangle(0,   0,  70, 50);
-            drawRectangle(30,  90, 50, 50);
-            drawRectangle(102, 90, 50, 50);
-            //drawRectangle(165, 90, 50, 50);
-            //drawRectangle(237, 90, 50, 50);
-            drawRectangle(270, 160, 40, 40);
         }
 
         void drawMidiChannel()
@@ -1125,12 +1127,12 @@ class MainPage: public Page {
 
             setColour(COLOUR_YELLOW);
             drawGraphic(GRAPHIC_FOLDER_IMAGE, 95, 166);
-            drawGraphic(GRAPHIC_COG_IMAGE, 206, 166);
+            drawGraphic(GRAPHIC_COG_IMAGE, 201, 166);
 
             setTextSize(1);
             setColour(COLOUR_WHITE);
             drawText(87, 195, "Patches");
-            drawText(193, 195, "Settings");
+            drawText(188, 195, "Settings");
 
             drawCurrentAlgorithm();
         }
@@ -1149,7 +1151,7 @@ class MainPage: public Page {
             };            
 
             ASSERT(m_algorithm < 8);
-            drawGraphic(graphic_ids[m_algorithm], 85, 12);
+            drawGraphic(graphic_ids[m_algorithm], 84, 12);
 
             int selection_x = m_algorithm < 4 ? 18 : 264;
             int selection_y = 14 + ((m_algorithm % 4) * 48);
@@ -1173,7 +1175,7 @@ const Hotspot PROGMEM MainPage::s_hotspots[NumberOfMainPageHotspots] = {
     { .id = Algorithm7HotspotId,     .x = 244, .y = 105, .width = 75, .height = 48 },
     { .id = Algorithm8HotspotId,     .x = 244, .y = 153, .width = 75, .height = 48 },
     { .id = PatchButtonHotspotId,    .x = 83,  .y = 156, .width = 48, .height = 60 },
-    { .id = SettingsButtonHotspotId, .x = 193, .y = 156, .width = 48, .height = 60 }
+    { .id = SettingsButtonHotspotId, .x = 188, .y = 156, .width = 48, .height = 60 }
 };
 
 
@@ -1201,7 +1203,7 @@ class Splash: public Panel {
 
 
 UI ui(screen);
-TopBar topBar(ui);
+TopBar top_bar(ui);
 Pager pager(ui, 0, 24, 320, 216);
 MainPage page(pager);
 PatchOptionsPage patch_options_page(pager);
@@ -1322,7 +1324,7 @@ void setup()
     digitalWrite(DISPLAY_BACKLIGHT_PIN, LOW);
     splash.hide();
 
-    topBar.show();
+    top_bar.show();
     pager.setPage(page);
     digitalWrite(DISPLAY_BACKLIGHT_PIN, HIGH);
 }
@@ -1342,9 +1344,17 @@ void loop()
     }
     ui.handleTouchInput(is_touched, point.x, point.y);
 
+    // TODO: Implement the actual control and MIDI reads
     if (pager.isCurrentPage(debug_page)) {
         //ASSERT(false);
         debug_page.updateControlValue(1, 1, xx);
-        ++ xx;
+    }
+
+    ++ xx;
+
+    if (xx < 0x7f) {
+        top_bar.setMidiIndicatorState(true);
+    } else {
+        top_bar.setMidiIndicatorState(false);
     }
 }

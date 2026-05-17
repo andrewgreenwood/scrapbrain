@@ -91,22 +91,22 @@ class UI {
 
     public:
         UI(Adafruit_GFX &screen)
-        : m_screen(screen), m_first_panel(NULL), m_is_touched(false),
-          m_touch_start_time(0), m_last_touch_x(-1), m_last_touch_y(-1),
+        : m_screen(screen), m_first_panel(NULL), m_graphics_table(NULL), m_is_touched(false),
+          m_background_colour(COLOUR_BLACK), m_touch_start_time(0), m_last_touch_x(-1), m_last_touch_y(-1),
           m_initial_touch_panel(NULL), m_last_touch_panel(NULL), m_same_hotspot(false)
         {
         }
 
-        void begin(uint16_t colour)
+        void begin(uint16_t background_colour)
         {
-            m_background_colour = colour;
-            m_screen.fillScreen(colour);
+            m_background_colour = background_colour;
+            m_screen.fillScreen(background_colour);
         }
 
 
         void setGraphicsTable(const uint8_t * const table[])
         {
-            ASSERT(m_graphics_table);
+            ASSERT(table);
             m_graphics_table = table;
         }
 
@@ -134,8 +134,8 @@ class UI {
         Adafruit_GFX &m_screen;
         Panel *m_first_panel;
         const uint8_t* const* m_graphics_table;
-        uint16_t m_background_colour;
         bool m_is_touched;
+        uint16_t m_background_colour;
         unsigned long m_touch_start_time;
         int16_t m_last_touch_x;
         int16_t m_last_touch_y;
@@ -181,6 +181,15 @@ class Panel: public Print {
         {
             m_visible = true;
             draw();
+#if defined(DEBUG)
+            setColour(COLOUR_DARK_RED);
+            for (int i = 0; i < m_number_of_hotspots; ++ i) {
+                drawRectangle(pgm_read_word(&m_hotspots[i].x),
+                              pgm_read_word(&m_hotspots[i].y),
+                              pgm_read_word(&m_hotspots[i].width),
+                              pgm_read_word(&m_hotspots[i].height));
+            }
+#endif
         }
 
         void hide()
@@ -189,6 +198,14 @@ class Panel: public Print {
             s_gfx->setTextColor(m_ui.m_background_colour);
             m_visible = false;
             draw();
+#if defined(DEBUG)
+            for (int i = 0; i < m_number_of_hotspots; ++ i) {
+                drawRectangle(pgm_read_word(&m_hotspots[i].x),
+                              pgm_read_word(&m_hotspots[i].y),
+                              pgm_read_word(&m_hotspots[i].width),
+                              pgm_read_word(&m_hotspots[i].height));
+            }
+#endif
             m_force_background_colour = false;
             s_gfx->setTextColor(m_colour);
         }
@@ -310,7 +327,7 @@ class Panel: public Print {
             m_colour = original_colour;
         }
 
-        void setHotspots(uint16_t count, const Hotspot hotspots[])
+        void setHotspots(uint8_t count, const Hotspot hotspots[])
         {
             m_number_of_hotspots = count;
             m_hotspots = hotspots;
@@ -335,10 +352,6 @@ class Panel: public Print {
             uint8_t op = pgm_read_byte(&(graphic_data[i ++]));
             while (op != GRAPHIC_END_OP) {
                 switch (op) {
-                    case GRAPHIC_END_OP:
-                        data_count = 0;
-                        break;
-
                     case GRAPHIC_SET_TEXT_SIZE_OP:
                         data_count = 1;
                         break;
@@ -450,7 +463,7 @@ class Panel: public Print {
         uint16_t m_colour;
         bool m_force_background_colour;
         bool m_visible;
-        int16_t m_number_of_hotspots;
+        uint8_t m_number_of_hotspots;
         const Hotspot *m_hotspots;
 };
 
