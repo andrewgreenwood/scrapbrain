@@ -958,11 +958,18 @@ class PatchSelectPage: public Page {
 
         virtual void draw()
         {
+            const __FlashStringHelper *titles[3] = {
+                F("Factory Patches"),
+                F("Load Patch"),
+                F("Save Patch")
+            };
+
             setColour(COLOUR_WHITE);
             drawGraphic(GRAPHIC_SMALL_BUTTON_OUTLINE, 20, PAGE_HEADER_Y);
             drawGraphic(GRAPHIC_LEFT_CHEVRON, 28, PAGE_HEADER_Y + 6);
             setTextSize(2);
-            drawText(65, PAGE_HEADER_Y + 5, m_mode == Save ? F("Save Patch") : F("Load Patch"));
+
+            drawText(65, PAGE_HEADER_Y + 5, titles[m_mode]);
 
             drawCurrentPatchSelection();
         }
@@ -1817,6 +1824,9 @@ void setup()
     Splash splash(ui);
 
     splash.show();
+#ifdef MOCK_ARDUINO
+    UiProcessEvents();   /* paint the splash before blocking in delay() */
+#endif
     digitalWrite(DISPLAY_BACKLIGHT_PIN, HIGH);
 
 #if !defined(MOCK_ARDUINO)
