@@ -3,17 +3,17 @@
 
 #include <Adafruit_GFX.h>
 
-#if defined(DEBUG)
+#if WITH_ASSERT == 1
     #define ASSERT(condition) \
-        { if (!(condition)) { ReportAssertionFailure(#condition, __FILE__, __LINE__); } }
+        { if (!(condition)) { ReportAssertionFailure(F(#condition), F(__FILE__), __LINE__); } }
 #else
     #define ASSERT(condition)
 #endif
 
 void SetDebugScreen(Adafruit_GFX *screen);
 
-void ReportFault(const char *title, const char *message);
+void ReportFault(const __FlashStringHelper *title, const __FlashStringHelper *message);
 
-void ReportAssertionFailure(const char *condition, const char *file, unsigned int line);
+void ReportAssertionFailure(const __FlashStringHelper *condition, const __FlashStringHelper *file, unsigned int line);
 
 #endif

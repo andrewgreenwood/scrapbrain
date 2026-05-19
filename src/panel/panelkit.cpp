@@ -92,3 +92,10 @@ void UI::handleTouchInput(bool touched, int16_t x, int16_t y)
     m_last_touch_x = x;
     m_last_touch_y = y;
 }
+
+void UI::process()
+{
+    for (Panel *panel = m_first_panel; panel; panel = panel->m_next_panel) {
+        if (panel->m_visible) panel->process();
+    }
+}

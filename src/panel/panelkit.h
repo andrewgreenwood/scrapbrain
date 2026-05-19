@@ -56,6 +56,14 @@ enum {
 #define COLOUR_DARK_BLUE            0x000c
 #define COLOUR_YELLOW               0xffe0
 
+inline uint16_t scaleColour(uint16_t colour, uint8_t scale) {
+    uint16_t s = scale + 1;  // 0-256 range so >> 8 gives exact 0 and full at endpoints
+    uint8_t r = (((colour >> 11) & 0x1F) * s) >> 8;
+    uint8_t g = (((colour >> 5)  & 0x3F) * s) >> 8;
+    uint8_t b = ((colour         & 0x1F) * s) >> 8;
+    return (r << 11) | (g << 5) | b;
+}
+
 enum TouchEventType {
     TouchStartEvent,
     TouchMoveEvent,
@@ -130,6 +138,8 @@ class UI {
 
         void handleTouchInput(bool touched, int16_t x, int16_t y);
 
+        void process();
+
     private:
         Adafruit_GFX &m_screen;
         Panel *m_first_panel;
@@ -181,7 +191,7 @@ class Panel: public Print {
         {
             m_visible = true;
             draw();
-#if defined(DEBUG)
+#if WITH_HOTSPOT_OUTLINE == 1
             setColour(COLOUR_DARK_RED);
             for (int i = 0; i < m_number_of_hotspots; ++ i) {
                 drawRectangle(pgm_read_word(&m_hotspots[i].x),
@@ -198,7 +208,7 @@ class Panel: public Print {
             s_gfx->setTextColor(m_ui.m_background_colour);
             m_visible = false;
             draw();
-#if defined(DEBUG)
+#if WITH_HOTSPOT_OUTLINE == 1
             for (int i = 0; i < m_number_of_hotspots; ++ i) {
                 drawRectangle(pgm_read_word(&m_hotspots[i].x),
                               pgm_read_word(&m_hotspots[i].y),
@@ -238,9 +248,10 @@ class Panel: public Print {
             return hotspot;
         }
 
-    protected:
-        virtual void draw() = 0;
+        uint16_t width()    { return m_width; }
+        uint16_t height()   { return m_height; }
 
+    protected:
         void fill(uint16_t colour)
         {
             s_gfx->fillRect(m_x, m_y, m_width, m_height, m_force_background_colour ? m_ui.m_background_colour : colour);
@@ -303,7 +314,17 @@ class Panel: public Print {
             s_gfx->setCursor(m_x + x, m_y + y);
         }
 
+        // This could be improved by handling newline cursor re-positioning
         void drawText(int16_t x, int16_t y, const char *string)
+        {
+            int16_t previous_x = s_gfx->getCursorX(),
+                    previous_y = s_gfx->getCursorY();
+            s_gfx->setCursor(m_x + x, m_y + y);
+            print(string);
+            s_gfx->setCursor(previous_x, previous_y);
+        }
+
+        void drawText(int16_t x, int16_t y, const __FlashStringHelper *string)
         {
             int16_t previous_x = s_gfx->getCursorX(),
                     previous_y = s_gfx->getCursorY();
@@ -336,6 +357,10 @@ class Panel: public Print {
         virtual void onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y) = 0;
 
     private:
+        virtual void draw() = 0;
+
+        virtual void process() = 0;
+
         uint16_t getActiveColour()
         {
             return m_force_background_colour ? m_ui.m_background_colour : m_colour;
