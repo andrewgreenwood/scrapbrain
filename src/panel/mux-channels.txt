@@ -1,0 +1,63 @@
+Mux A channels:
+0   Op1 Sustain
+1   Op1 Decay 2
+2   Op1 Release
+3   Op1 AM Start
+4   Op1 Level
+5   Op1 Start
+6   Op1 Velocity
+7   Op1 Env Scale
+8   Op1 Detune
+9   Op1 Decay 1
+10  Op1 Freq X
+11  Op1 Attack
+12  Op2 Attack
+13  Op2 Detune
+14  Op2 Decay 1
+15  Op2 Freq X
+
+Mux B channels:
+0   Op2 Sustain
+1   Op2 Decay 2
+2   Op2 Release
+3   Op2 AM Start
+4   Op2 Level
+5   Op2 Start
+6   Op2 Velocity
+7   Op2 Env Scale
+8   Op3 Sustain
+9   Op3 Decay 2
+10  Op3 Release
+11  Op3 AM Start
+12  Op3 Level
+13  Op3 Start
+14  Op3 Velocity
+15  Op3 Env Scale
+
+Mux C channels:
+0   Op4 Sustain
+1   Op4 Decay 2
+2   Op4 Release
+3   Op4 AM Start
+4   Op4 Level
+5   Op4 Start
+6   Op4 Velocity
+7   Op4 Env Scale
+8   Op3 Attack
+9   Op3 Detune
+10  Op3 Decay 1
+11  Op3 Freq X
+12  Op4 Freq X
+13  Op4 Attack
+14  Op4 Detune
+15  Op4 Decay 1
+
+Mux D channels:
+0   -
+1   -
+2   Op1 Feedback (TODO: TEST THIS)
+3   -
+4   LFO Rate
+5   AM Depth
+6   PM Start
+7   PM Depth

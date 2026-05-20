@@ -1,0 +1,21 @@
+Pin map (atmega328):
+0   Serial RX (MIDI in), also connected to FTDI TX
+1   Serial TX (MIDI out), also connected to FTDI RX
+2   Display TCS
+3   Display DC
+4   Mux S0
+5   Mux S1
+6   Mux S2
+7   Mux S3 (only for 16-channel)
+8   -
+9   Display backlight
+10  -
+11  SPI MOSI (for touchscreen)
+12  SPI MISO (for touchscreen)
+13  SPI SCK (for touchscreen)
+A0  Mux C COM
+A1  Mux A COM
+A2  Mux B COM
+A3  Mux D COM (main panel)
+A4  I2C SDA (for touchscreen)
+A5  I2C SCL (for touchscreen)

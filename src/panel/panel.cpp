@@ -1,32 +1,6 @@
 /*
     SCRAP BRAIN - YM2612 Hardware Synth - Panel
     Author: Andrew Greenwood
-
-    TODO: Implement mux and potentiometer reading
-
-    Hardware: Atmega328p
-
-    Pin map (Arduino):
-        0   Serial RX (MIDI in), also connected to FTDI TX
-        1   Serial TX (MIDI out) also connected to FTDI RX
-        2   Display TCS
-        3   Display DC
-        4   Multiplexer S0
-        5   Multiplexer S1
-        6   Multiplexer S2
-        7   Multiplexer S3 (only for 16-channel, not main panel)
-        8   -
-        9   Display backlight
-        10  -
-        11  SPI MOSI (for touchscreen)
-        12  SPI MISO (for touchscreen)
-        13  SPI SCK (for touchscreen)
-        A0  Multiplexer 3 COM
-        A1  Multiplexer 1 COM
-        A2  Multiplexer 2 COM
-        A3  Main panel multiplexer COM
-        A4  I2C SDA (for touchscreen)
-        A5  I2C SCL (for touchscreen)
 */
 
 // Debugging options
@@ -60,6 +34,7 @@
 #endif
 
 #include "panelkit.h"
+#include "graphics.h"
 #include "debug.h"
 
 #ifdef MOCK_ARDUINO
@@ -76,7 +51,6 @@ Adafruit_ILI9341 screen(DISPLAY_TCS_PIN, DISPLAY_DC_PIN);
 Adafruit_FT6206 touchscreen;
 #endif
 
-
 #define EEPROM_SETTINGS_OFFSET  0x000
 #define EEPROM_PATCHES_OFFSET   sizeof(settings)
 
@@ -86,699 +60,6 @@ struct Settings {
     uint8_t signature;
     uint8_t midi_channel;
 } settings;
-
-#define BACKGROUND_COLOUR           0x1082
-#define TOPBAR_COLOUR               0x0000
-#define CARRIER_OPERATOR_COLOUR     0x2589
-#define MODULATOR_OPERATOR_COLOUR   0xf3e4
-#define OPERATOR_LINK_COLOUR        0xffff
-
-#define INDICATOR_OUTLINE_COLOUR    0xffff
-#define GREEN_INDICATOR_COLOUR      0x2589
-#define GREEN_INDICATOR_LOW_COLOUR  0x0000
-
-#define BUTTON_OUTLINE_COLOUR       BACKGROUND_COLOUR
-// 0x0841
-
-enum {
-    GRAPHIC_INDICATOR_OUTLINE = GRAPHIC_FIRST_ID,
-    GRAPHIC_GREEN_INDICATOR,
-    GRAPHIC_ALGORITHM_BUTTON_OUTLINE,
-    GRAPHIC_CARRIER_OPERATOR_SQUARE,
-    GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE,
-    GRAPHIC_MODULATOR_OPERATOR_SQUARE,
-    GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE,
-    GRAPHIC_VERTICAL_OPERATOR_CONNECTION,
-    GRAPHIC_BIG_VERTICAL_OPERATOR_CONNECTION,
-    GRAPHIC_UP_LEFT_OPERATOR_CONNECTION,
-    GRAPHIC_BIG_UP_LEFT_OPERATOR_CONNECTION,
-    GRAPHIC_UP_RIGHT_OPERATOR_CONNECTION,
-    GRAPHIC_BIG_UP_RIGHT_OPERATOR_CONNECTION,
-    GRAPHIC_LEFT_UP_OPERATOR_CONNECTION,
-    GRAPHIC_BIG_LEFT_UP_OPERATOR_CONNECTION,
-    GRAPHIC_RIGHT_UP_OPERATOR_CONNECTION,
-    GRAPHIC_BIG_RIGHT_UP_OPERATOR_CONNECTION,
-    GRAPHIC_ALGORITHM_1_SMALL,
-    GRAPHIC_ALGORITHM_1_BIG,
-    GRAPHIC_ALGORITHM_2_SMALL,
-    GRAPHIC_ALGORITHM_2_BIG,
-    GRAPHIC_ALGORITHM_3_SMALL,
-    GRAPHIC_ALGORITHM_3_BIG,
-    GRAPHIC_ALGORITHM_4_SMALL,
-    GRAPHIC_ALGORITHM_4_BIG,
-    GRAPHIC_ALGORITHM_5_SMALL,
-    GRAPHIC_ALGORITHM_5_BIG,
-    GRAPHIC_ALGORITHM_6_SMALL,
-    GRAPHIC_ALGORITHM_6_BIG,
-    GRAPHIC_ALGORITHM_7_SMALL,
-    GRAPHIC_ALGORITHM_7_BIG,
-    GRAPHIC_ALGORITHM_8_SMALL,
-    GRAPHIC_ALGORITHM_8_BIG,
-    GRAPHIC_FOLDER_IMAGE,
-    GRAPHIC_COG_IMAGE,
-    GRAPHIC_BOX_IMAGE,
-    GRAPHIC_UP_ARROW_IMAGE,
-    GRAPHIC_DOWN_ARROW_IMAGE,
-    GRAPHIC_RESET_ARROW_IMAGE,
-    GRAPHIC_OPEN_FOLDER_IMAGE,
-    GRAPHIC_MIDI_CONNECTOR,
-    GRAPHIC_LEFT_CHEVRON,
-    GRAPHIC_RIGHT_CHEVRON,
-    GRAPHIC_SMALL_BUTTON_OUTLINE,
-    GRAPHIC_ALGORITHM_SELECT
-};
-
-BEGIN_GRAPHIC(graphicIndicatorOutlineData)
-    GRAPHIC_SET_COLOUR(0xffff)
-    GRAPHIC_HORIZONTAL_LINE(0, 1, 5)
-    GRAPHIC_HORIZONTAL_LINE(6, 1, 5)
-    GRAPHIC_VERTICAL_LINE(0, 1, 5)
-    GRAPHIC_VERTICAL_LINE(6, 1, 5)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicGreenIndicatorData)
-    GRAPHIC_SET_COLOUR(GREEN_INDICATOR_COLOUR)
-    GRAPHIC_FILLED_SQUARE(1, 1, 3)
-    GRAPHIC_HORIZONTAL_LINE(0, 0, 4)
-    GRAPHIC_VERTICAL_LINE(0, 1, 4)
-    GRAPHIC_SET_COLOUR(GREEN_INDICATOR_LOW_COLOUR)
-    GRAPHIC_HORIZONTAL_LINE(4, 1, 4)
-    GRAPHIC_VERTICAL_LINE(4, 1, 3)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithmButtonOutlineData)
-    GRAPHIC_SET_COLOUR(BUTTON_OUTLINE_COLOUR)
-    GRAPHIC_SQUARE(0, 0, 45)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicCarrierOperatorSquareData)
-    GRAPHIC_SET_COLOUR(CARRIER_OPERATOR_COLOUR)
-    GRAPHIC_SQUARE(0, 0, 7)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicBigCarrierOperatorSquareData)
-    GRAPHIC_SET_COLOUR(CARRIER_OPERATOR_COLOUR)
-    GRAPHIC_SQUARE(0, 0, 30)
-    GRAPHIC_SQUARE(1, 1, 28)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicModulatorOperatorSquareData)
-    GRAPHIC_SET_COLOUR(MODULATOR_OPERATOR_COLOUR)
-    GRAPHIC_SQUARE(0, 0, 7)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicBigModulatorOperatorSquareData)
-    GRAPHIC_SET_COLOUR(MODULATOR_OPERATOR_COLOUR)
-    GRAPHIC_SQUARE(0, 0, 30)
-    GRAPHIC_SQUARE(1, 1, 28)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicVerticalOperatorConnectionData)
-    GRAPHIC_SET_COLOUR(OPERATOR_LINK_COLOUR)
-    GRAPHIC_VERTICAL_LINE(0, 0, 2)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicBigVerticalOperatorConnectionData)
-    GRAPHIC_SET_COLOUR(OPERATOR_LINK_COLOUR)
-    GRAPHIC_FILLED_RECTANGLE(0, 0, 3, 10)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicUpLeftOperatorConnectionData)
-    GRAPHIC_SET_COLOUR(OPERATOR_LINK_COLOUR)
-    GRAPHIC_VERTICAL_LINE(3, 1, 5)
-    GRAPHIC_HORIZONTAL_LINE(0, 0, 2)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicBigUpLeftOperatorConnectionData)
-    GRAPHIC_SET_COLOUR(OPERATOR_LINK_COLOUR)
-    GRAPHIC_FILLED_RECTANGLE(0, 0, 16, 3)
-    GRAPHIC_FILLED_RECTANGLE(14, 1, 3, 22)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicUpRightOperatorConnectionData)
-    GRAPHIC_SET_COLOUR(OPERATOR_LINK_COLOUR)
-    GRAPHIC_VERTICAL_LINE(0, 1, 5)
-    GRAPHIC_HORIZONTAL_LINE(0, 1, 3)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicBigUpRightOperatorConnectionData)
-    GRAPHIC_SET_COLOUR(OPERATOR_LINK_COLOUR)
-    GRAPHIC_FILLED_RECTANGLE(1, 0, 15, 3)
-    GRAPHIC_FILLED_RECTANGLE(0, 1, 3, 22)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicLeftUpOperatorConnectionData)
-    GRAPHIC_SET_COLOUR(OPERATOR_LINK_COLOUR)
-    GRAPHIC_HORIZONTAL_LINE(5, 1, 6)
-    GRAPHIC_VERTICAL_LINE(0, 0, 4)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicBigLeftUpOperatorConnectionData)
-    GRAPHIC_SET_COLOUR(OPERATOR_LINK_COLOUR)
-    GRAPHIC_FILLED_RECTANGLE(1, 20, 26, 3)
-    GRAPHIC_FILLED_RECTANGLE(0, 0, 3, 22)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicRightUpOperatorConnectionData)
-    GRAPHIC_SET_COLOUR(OPERATOR_LINK_COLOUR)
-    GRAPHIC_HORIZONTAL_LINE(5, 0, 5)
-    GRAPHIC_VERTICAL_LINE(6, 0, 4)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicBigRightUpOperatorConnectionData)
-    GRAPHIC_SET_COLOUR(OPERATOR_LINK_COLOUR)
-    GRAPHIC_FILLED_RECTANGLE(0, 20, 26, 3)
-    GRAPHIC_FILLED_RECTANGLE(24, 0, 3, 22)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm1SmallData)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 17, 2)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 17, 12)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 17, 22)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 17, 32)
-    GRAPHIC(GRAPHIC_VERTICAL_OPERATOR_CONNECTION, 20, 9)
-    GRAPHIC(GRAPHIC_VERTICAL_OPERATOR_CONNECTION, 20, 19)
-    GRAPHIC(GRAPHIC_VERTICAL_OPERATOR_CONNECTION, 20, 29)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm1BigData)
-    GRAPHIC_SET_TEXT_SIZE(2)
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 60, 0)
-    GRAPHIC_CHARACTER(70, 8, '4')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 60, 40)
-    GRAPHIC_CHARACTER(70, 48, '3')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 60, 80)
-    GRAPHIC_CHARACTER(70, 88, '2')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 60, 120)
-    GRAPHIC_CHARACTER(70, 128, '1')
-    GRAPHIC(GRAPHIC_BIG_VERTICAL_OPERATOR_CONNECTION, 74, 30)
-    GRAPHIC(GRAPHIC_BIG_VERTICAL_OPERATOR_CONNECTION, 74, 70)
-    GRAPHIC(GRAPHIC_BIG_VERTICAL_OPERATOR_CONNECTION, 74, 110)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm2SmallData)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 17, 7)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 17, 17)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 10, 27)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 24, 27)
-    GRAPHIC(GRAPHIC_VERTICAL_OPERATOR_CONNECTION, 20, 14)
-    GRAPHIC(GRAPHIC_UP_RIGHT_OPERATOR_CONNECTION, 13, 21)
-    GRAPHIC(GRAPHIC_UP_LEFT_OPERATOR_CONNECTION, 24, 21)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm2BigData)
-    GRAPHIC_SET_TEXT_SIZE(2)
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 60, 20)
-    GRAPHIC_CHARACTER(70, 28, '4')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 60, 60)
-    GRAPHIC_CHARACTER(70, 68, '3')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 30, 100)
-    GRAPHIC_CHARACTER(40, 108, '1')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 90, 100)
-    GRAPHIC_CHARACTER(100, 108, '2')
-    GRAPHIC(GRAPHIC_BIG_VERTICAL_OPERATOR_CONNECTION, 74, 50)
-    GRAPHIC(GRAPHIC_BIG_UP_RIGHT_OPERATOR_CONNECTION, 44, 77)
-    GRAPHIC(GRAPHIC_BIG_UP_LEFT_OPERATOR_CONNECTION, 90, 77)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm3SmallData)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 17, 7)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 10, 17)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 24, 17)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 24, 27)
-    GRAPHIC(GRAPHIC_UP_RIGHT_OPERATOR_CONNECTION, 13, 11)
-    GRAPHIC(GRAPHIC_UP_LEFT_OPERATOR_CONNECTION, 24, 11)
-    GRAPHIC(GRAPHIC_VERTICAL_OPERATOR_CONNECTION, 27, 24)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm3BigData)
-    GRAPHIC_SET_TEXT_SIZE(2)
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 60, 20)
-    GRAPHIC_CHARACTER(70, 28, '4')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 30, 60)
-    GRAPHIC_CHARACTER(40, 68, '1')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 90, 60)
-    GRAPHIC_CHARACTER(100, 68, '3')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 90, 100)
-    GRAPHIC_CHARACTER(100, 108, '2')
-    GRAPHIC(GRAPHIC_BIG_UP_RIGHT_OPERATOR_CONNECTION, 44, 37)
-    GRAPHIC(GRAPHIC_BIG_UP_LEFT_OPERATOR_CONNECTION, 90, 37)
-    GRAPHIC(GRAPHIC_BIG_VERTICAL_OPERATOR_CONNECTION, 104, 90)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm4SmallData)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 17, 7)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 10, 17)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 24, 17)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 10, 27)
-    GRAPHIC(GRAPHIC_UP_RIGHT_OPERATOR_CONNECTION, 13, 11)
-    GRAPHIC(GRAPHIC_UP_LEFT_OPERATOR_CONNECTION, 24, 11)
-    GRAPHIC(GRAPHIC_VERTICAL_OPERATOR_CONNECTION, 13, 24)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm4BigData)
-    GRAPHIC_SET_TEXT_SIZE(2)
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 60, 20)
-    GRAPHIC_CHARACTER(70, 28, '4')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 30, 60)
-    GRAPHIC_CHARACTER(40, 68, '2')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 90, 60)
-    GRAPHIC_CHARACTER(100, 68, '3')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 30, 100)
-    GRAPHIC_CHARACTER(40, 108, '1')
-    GRAPHIC(GRAPHIC_BIG_UP_RIGHT_OPERATOR_CONNECTION, 44, 37)
-    GRAPHIC(GRAPHIC_BIG_UP_LEFT_OPERATOR_CONNECTION, 90, 37)
-    GRAPHIC(GRAPHIC_BIG_VERTICAL_OPERATOR_CONNECTION, 44, 90)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm5SmallData)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 12, 12)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 22, 12)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 12, 22)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 22, 22)
-    GRAPHIC(GRAPHIC_VERTICAL_OPERATOR_CONNECTION, 15, 19)
-    GRAPHIC(GRAPHIC_VERTICAL_OPERATOR_CONNECTION, 25, 19)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm5BigData)
-    GRAPHIC_SET_TEXT_SIZE(2)
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 40, 40)
-    GRAPHIC_CHARACTER(50, 48, '2')
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 80, 40)
-    GRAPHIC_CHARACTER(90, 48, '4')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 40, 80)
-    GRAPHIC_CHARACTER(50, 88, '1')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 80, 80)
-    GRAPHIC_CHARACTER(90, 88, '3')
-    GRAPHIC(GRAPHIC_BIG_VERTICAL_OPERATOR_CONNECTION, 54, 70)
-    GRAPHIC(GRAPHIC_BIG_VERTICAL_OPERATOR_CONNECTION, 94, 70)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm6SmallData)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 7, 12)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 17, 12)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 27, 12)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 17, 22)
-    GRAPHIC(GRAPHIC_LEFT_UP_OPERATOR_CONNECTION, 10, 19)
-    GRAPHIC(GRAPHIC_VERTICAL_OPERATOR_CONNECTION, 20, 19)
-    GRAPHIC(GRAPHIC_RIGHT_UP_OPERATOR_CONNECTION, 24, 19)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm6BigData)
-    GRAPHIC_SET_TEXT_SIZE(2)
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 20, 40)
-    GRAPHIC_CHARACTER(30, 48, '2')
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 60, 40)
-    GRAPHIC_CHARACTER(70, 48, '3')
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 100, 40)
-    GRAPHIC_CHARACTER(110, 48, '4')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 60, 80)
-    GRAPHIC_CHARACTER(70, 88, '1')
-    GRAPHIC(GRAPHIC_BIG_VERTICAL_OPERATOR_CONNECTION, 74, 70)
-    GRAPHIC(GRAPHIC_BIG_LEFT_UP_OPERATOR_CONNECTION, 33, 70)
-    GRAPHIC(GRAPHIC_BIG_RIGHT_UP_OPERATOR_CONNECTION, 90, 70)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm7SmallData)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 7, 12)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 17, 12)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 27, 12)
-    GRAPHIC(GRAPHIC_MODULATOR_OPERATOR_SQUARE, 7, 22)
-    GRAPHIC(GRAPHIC_VERTICAL_OPERATOR_CONNECTION, 10, 19)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm7BigData)
-    GRAPHIC_SET_TEXT_SIZE(2)
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 20, 40)
-    GRAPHIC_CHARACTER(30, 48, '2')
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 60, 40)
-    GRAPHIC_CHARACTER(70, 48, '3')
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 100, 40)
-    GRAPHIC_CHARACTER(110, 48, '4')
-    GRAPHIC(GRAPHIC_BIG_MODULATOR_OPERATOR_SQUARE, 20, 80)
-    GRAPHIC_CHARACTER(30, 88, '1')
-    GRAPHIC(GRAPHIC_BIG_VERTICAL_OPERATOR_CONNECTION, 34, 70)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm8SmallData)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 2, 17)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 12, 17)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 22, 17)
-    GRAPHIC(GRAPHIC_CARRIER_OPERATOR_SQUARE, 32, 17)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(graphicAlgorithm8BigData)
-    GRAPHIC_SET_TEXT_SIZE(2)
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 0, 60)
-    GRAPHIC_CHARACTER(10, 68, '1')
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 40, 60)
-    GRAPHIC_CHARACTER(50, 68, '2')
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 80, 60)
-    GRAPHIC_CHARACTER(90, 68, '3')
-    GRAPHIC(GRAPHIC_BIG_CARRIER_OPERATOR_SQUARE, 120, 60)
-    GRAPHIC_CHARACTER(130, 68, '4')
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(folderGraphicData)
-    //GRAPHIC_SET_COLOUR(COLOUR_YELLOW)
-    GRAPHIC_BITMAP(0, 0, 24, 21,
-        0x7f, 0x00, 0x00,
-        0x80, 0x80, 0x00,
-        0x80, 0x40, 0x00,
-        0x80, 0x3f, 0xfe,
-        0x80, 0x00, 0x01,
-        0x80, 0x00, 0x01,
-        0x80, 0x00, 0x01,
-        0x80, 0x00, 0x01,
-        0x80, 0x00, 0x01,
-        0x80, 0x00, 0x01,
-        0x80, 0x00, 0x01,
-        0x80, 0x00, 0x01,
-        0x80, 0x00, 0x01,
-        0x80, 0x00, 0x01,
-        0x80, 0x00, 0x01,
-        0x80, 0x00, 0x01,
-        0x80, 0x00, 0x01,
-        0x80, 0x00, 0x01,
-        0x80, 0x00, 0x01,
-        0x80, 0x00, 0x01,
-        0x7f, 0xff, 0xfe
-    )
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(cogGraphicData)
-    //GRAPHIC_SET_COLOUR(COLOUR_YELLOW)
-    GRAPHIC_BITMAP(0, 0, 21, 21,
-        0x00, 0x70, 0x00,
-        0x00, 0x88, 0x00,
-        0x0c, 0x89, 0x80,
-        0x13, 0x06, 0x40,
-        0x20, 0x00, 0x20,
-        0x20, 0x00, 0x20,
-        0x10, 0x00, 0x40,
-        0x10, 0x70, 0x40,
-        0x60, 0x88, 0x30,
-        0x81, 0x04, 0x08,
-        0x81, 0x04, 0x08,
-        0x81, 0x04, 0x08,
-        0x60, 0x88, 0x30,
-        0x10, 0x70, 0x40,
-        0x10, 0x00, 0x40,
-        0x20, 0x00, 0x20,
-        0x20, 0x00, 0x20,
-        0x13, 0x06, 0x40,
-        0x0c, 0x89, 0x80,
-        0x00, 0x88, 0x00,
-        0x00, 0x70, 0x00
-    )
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(boxGraphicData)
-    //GRAPHIC_SET_COLOUR(COLOUR_YELLOW)
-    GRAPHIC_BITMAP(0, 0, 34, 25,
-        0x00, 0x01, 0x04, 0x00, 0x00,
-        0x00, 0x0e, 0x03, 0x00, 0x00,
-        0x00, 0x70, 0x00, 0xc0, 0x00,
-        0x03, 0x80, 0x00, 0x30, 0x00,
-        0x0c, 0x00, 0x00, 0x1c, 0x00,
-        0x13, 0x00, 0x00, 0x0f, 0x00,
-        0x20, 0xc0, 0x00, 0x74, 0xc0,
-        0x40, 0x30, 0x03, 0x84, 0x00,
-        0x80, 0x0c, 0x1c, 0x04, 0x00,
-        0xc0, 0x03, 0xe0, 0x04, 0x00,
-        0x30, 0x02, 0x80, 0x04, 0x00,
-        0x1c, 0x04, 0x80, 0x04, 0x00,
-        0x13, 0x08, 0x80, 0x04, 0x00,
-        0x10, 0xd0, 0x80, 0x04, 0x00,
-        0x10, 0x20, 0x80, 0x04, 0x00,
-        0x10, 0x00, 0x80, 0x04, 0x00,
-        0x10, 0x00, 0x80, 0x04, 0x00,
-        0x10, 0x00, 0x80, 0x04, 0x00,
-        0x10, 0x00, 0x80, 0x04, 0x00,
-        0x0c, 0x00, 0x80, 0x04, 0x00,
-        0x03, 0x00, 0x80, 0x0c, 0x00,
-        0x00, 0xc0, 0x80, 0x70, 0x00,
-        0x00, 0x30, 0x83, 0x80, 0x00,
-        0x00, 0x0c, 0x9c, 0x00, 0x00,
-        0x00, 0x03, 0xe0, 0x00, 0x00
-    )
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(arrowUpGraphicData)
-    //GRAPHIC_SET_COLOUR(COLOUR_WHITE)
-    GRAPHIC_BITMAP(0, 0, 13, 16,
-        0x07, 0x00,
-        0x08, 0x80,
-        0x10, 0x40,
-        0x20, 0x20,
-        0x40, 0x10,
-        0x80, 0x08,
-        0x88, 0x88,
-        0x98, 0xc8,
-        0x68, 0xb0,
-        0x08, 0x80,
-        0x08, 0x80,
-        0x08, 0x80,
-        0x08, 0x80,
-        0x08, 0x80,
-        0x08, 0x80,
-        0x07, 0x00
-    )
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(arrowDownGraphicData)
-    //GRAPHIC_SET_COLOUR(COLOUR_WHITE)
-    GRAPHIC_BITMAP(0, 0, 13, 16,
-        0x07, 0x00,
-        0x08, 0x80,
-        0x08, 0x80,
-        0x08, 0x80,
-        0x08, 0x80,
-        0x08, 0x80,
-        0x08, 0x80,
-        0x68, 0xb0,
-        0x98, 0xc8,
-        0x88, 0x88,
-        0x80, 0x08,
-        0x40, 0x10,
-        0x20, 0x20,
-        0x10, 0x40,
-        0x08, 0x80,
-        0x07, 0x00
-    )
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(arrowResetGraphicData)
-    //GRAPHIC_SET_COLOUR(COLOUR_YELLOW)
-    GRAPHIC_BITMAP(0, 0, 25, 29,
-        0x01, 0xc0, 0x00, 0x00,
-        0x02, 0x20, 0x00, 0x00,
-        0x04, 0x20, 0x00, 0x00,
-        0x08, 0x40, 0x00, 0x00,
-        0x10, 0xfe, 0x00, 0x00,
-        0x20, 0x01, 0xc0, 0x00,
-        0x20, 0x00, 0x30, 0x00,
-        0x20, 0x00, 0x08, 0x00,
-        0x10, 0xfe, 0x04, 0x00,
-        0x08, 0x41, 0x82, 0x00,
-        0x04, 0x20, 0x42, 0x00,
-        0x02, 0x20, 0x21, 0x00,
-        0x01, 0xc0, 0x11, 0x00,
-        0x00, 0x00, 0x11, 0x00,
-        0x00, 0x00, 0x08, 0x80,
-        0x70, 0x00, 0x08, 0x80,
-        0x88, 0x00, 0x08, 0x80,
-        0x88, 0x00, 0x08, 0x80,
-        0x88, 0x00, 0x08, 0x80,
-        0x44, 0x00, 0x11, 0x00,
-        0x44, 0x00, 0x11, 0x00,
-        0x42, 0x00, 0x21, 0x00,
-        0x21, 0x00, 0x42, 0x00,
-        0x20, 0xc1, 0x82, 0x00,
-        0x10, 0x3e, 0x04, 0x00,
-        0x08, 0x00, 0x08, 0x00,
-        0x06, 0x00, 0x30, 0x00,
-        0x01, 0xc1, 0xc0, 0x00,
-        0x00, 0x3e, 0x00, 0x00
-    )
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(folderOpenGraphicData)
-    //GRAPHIC_SET_COLOUR(COLOUR_YELLOW)
-    GRAPHIC_BITMAP(0, 0, 29, 21,
-        0x7f, 0x00, 0x00, 0x00,
-        0x80, 0x80, 0x00, 0x00,
-        0x80, 0x40, 0x00, 0x00,
-        0x80, 0x3c, 0x1e, 0x00,
-        0x80, 0x00, 0x01, 0x00,
-        0x80, 0x00, 0x01, 0x00,
-        0x80, 0x00, 0x01, 0x00,
-        0x81, 0xff, 0xff, 0xf0,
-        0x82, 0x00, 0x00, 0x08,
-        0x82, 0x00, 0x00, 0x08,
-        0x84, 0x00, 0x00, 0x10,
-        0x84, 0x00, 0x00, 0x10,
-        0x88, 0x00, 0x00, 0x20,
-        0x88, 0x00, 0x00, 0x20,
-        0x90, 0x00, 0x00, 0x40,
-        0x90, 0x00, 0x00, 0x40,
-        0xa0, 0x00, 0x00, 0x80,
-        0xa0, 0x00, 0x00, 0x80,
-        0xc0, 0x00, 0x01, 0x00,
-        0x40, 0x00, 0x01, 0x00,
-        0x3f, 0xff, 0xfe, 0x00
-    )
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(midiConnectorGraphic)
-    //GRAPHIC_SET_COLOUR(COLOUR_YELLOW)
-    GRAPHIC_BITMAP(0, 0, 32, 33,
-        0x00, 0x0f, 0xf0, 0x00,
-        0x00, 0x37, 0xec, 0x00,
-        0x00, 0xc7, 0xe3, 0x00,
-        0x03, 0x07, 0xe0, 0xc0,
-        0x04, 0x07, 0xe0, 0x20,
-        0x08, 0x00, 0x00, 0x10,
-        0x08, 0x00, 0x00, 0x08,
-        0x10, 0x00, 0x00, 0x08,
-        0x20, 0x00, 0x00, 0x04,
-        0x20, 0x00, 0x00, 0x04,
-        0x40, 0x00, 0x00, 0x02,
-        0x40, 0x00, 0x00, 0x02,
-        0x40, 0x00, 0x00, 0x02,
-        0x80, 0x00, 0x00, 0x01,
-        0x80, 0x00, 0x00, 0x01,
-        0x80, 0x00, 0x00, 0x01,
-        0x83, 0x00, 0x00, 0xc1,
-        0x83, 0x00, 0x00, 0xc1,
-        0x80, 0x00, 0x00, 0x01,
-        0x80, 0x00, 0x00, 0x01,
-        0x40, 0x00, 0x00, 0x02,
-        0x40, 0x00, 0x00, 0x02,
-        0x40, 0x60, 0x06, 0x02,
-        0x20, 0x60, 0x06, 0x04,
-        0x20, 0x00, 0x00, 0x04,
-        0x10, 0x01, 0x80, 0x08,
-        0x08, 0x01, 0x80, 0x08,
-        0x08, 0x00, 0x00, 0x10,
-        0x04, 0x00, 0x00, 0x20,
-        0x03, 0x00, 0x00, 0xc0,
-        0x00, 0xc0, 0x03, 0x00,
-        0x00, 0x30, 0x0c, 0x00,
-        0x00, 0x0f, 0xf0, 0x00
-    )
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(leftChevronGraphic)
-    GRAPHIC_BITMAP(0, 0, 8, 14,
-        0x03,
-        0x07,
-        0x0e,
-        0x1c,
-        0x38,
-        0x70,
-        0xe0,
-        0xe0,
-        0x70,
-        0x38,
-        0x1c,
-        0x0e,
-        0x07,
-        0x03
-    )
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(rightChevronGraphic)
-    GRAPHIC_BITMAP(0, 0, 8, 14,
-        0xc0,
-        0xe0,
-        0x70,
-        0x38,
-        0x1c,
-        0x0e,
-        0x07,
-        0x07,
-        0x0e,
-        0x1c,
-        0x38,
-        0x70,
-        0xe0,
-        0xc0
-    )
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(smallButtonOutlineGraphic)
-    GRAPHIC_SET_COLOUR(COLOUR_WHITE)        // TODO
-    GRAPHIC_VERTICAL_LINE(0, 2, 23)
-    GRAPHIC_HORIZONTAL_LINE(0, 2, 23)
-    GRAPHIC_VERTICAL_LINE(25, 2, 23)
-    GRAPHIC_HORIZONTAL_LINE(25, 2, 23)
-    GRAPHIC_PIXEL(1, 1)
-    GRAPHIC_PIXEL(24, 1)
-    GRAPHIC_PIXEL(1, 24)
-    GRAPHIC_PIXEL(24, 24)
-END_GRAPHIC()
-
-BEGIN_GRAPHIC(algorithmSelectGraphic)
-    GRAPHIC_SET_COLOUR(COLOUR_WHITE)        // TODO
-    GRAPHIC_VERTICAL_LINE(0, 0, 5)
-    GRAPHIC_HORIZONTAL_LINE(0, 1, 5)
-    GRAPHIC_VERTICAL_LINE(36, 0, 5)
-    GRAPHIC_HORIZONTAL_LINE(0, 31, 35)
-    GRAPHIC_VERTICAL_LINE(0, 31, 36)
-    GRAPHIC_HORIZONTAL_LINE(36, 1, 5)
-    GRAPHIC_VERTICAL_LINE(36, 31, 36)
-    GRAPHIC_HORIZONTAL_LINE(36, 31, 35)
-END_GRAPHIC()
-
-const uint8_t* const graphics[] PROGMEM = {
-    graphicIndicatorOutlineData,
-    graphicGreenIndicatorData,
-    graphicAlgorithmButtonOutlineData,
-    graphicCarrierOperatorSquareData,
-    graphicBigCarrierOperatorSquareData,
-    graphicModulatorOperatorSquareData,
-    graphicBigModulatorOperatorSquareData,
-    graphicVerticalOperatorConnectionData,
-    graphicBigVerticalOperatorConnectionData,
-    graphicUpLeftOperatorConnectionData,
-    graphicBigUpLeftOperatorConnectionData,
-    graphicUpRightOperatorConnectionData,
-    graphicBigUpRightOperatorConnectionData,
-    graphicLeftUpOperatorConnectionData,
-    graphicBigLeftUpOperatorConnectionData,
-    graphicRightUpOperatorConnectionData,
-    graphicBigRightUpOperatorConnectionData,
-    graphicAlgorithm1SmallData,
-    graphicAlgorithm1BigData,
-    graphicAlgorithm2SmallData,
-    graphicAlgorithm2BigData,
-    graphicAlgorithm3SmallData,
-    graphicAlgorithm3BigData,
-    graphicAlgorithm4SmallData,
-    graphicAlgorithm4BigData,
-    graphicAlgorithm5SmallData,
-    graphicAlgorithm5BigData,
-    graphicAlgorithm6SmallData,
-    graphicAlgorithm6BigData,
-    graphicAlgorithm7SmallData,
-    graphicAlgorithm7BigData,
-    graphicAlgorithm8SmallData,
-    graphicAlgorithm8BigData,
-    folderGraphicData,
-    cogGraphicData,
-    boxGraphicData,
-    arrowUpGraphicData,
-    arrowDownGraphicData,
-    arrowResetGraphicData,
-    folderOpenGraphicData,
-    midiConnectorGraphic,
-    leftChevronGraphic,
-    rightChevronGraphic,
-    smallButtonOutlineGraphic,
-    algorithmSelectGraphic
-};
-
 
 //
 // The title bar and MIDI indicator state
@@ -971,6 +252,10 @@ class PatchSelectPage: public Page {
 
             drawText(65, PAGE_HEADER_Y + 5, titles[m_mode]);
 
+            setTextSize(1);
+            setColour(COLOUR_BRIGHT_RED);
+            drawText(25, 190, F("not implemented // todo"));
+
             drawCurrentPatchSelection();
         }
 
@@ -1047,45 +332,6 @@ const Hotspot PROGMEM PatchSelectPage::s_hotspots[PatchSelectPage::NumberOfHotsp
     { .id = PatchSelectPage::Patch9ButtonHotspotId,  .x = 192, .y = 135, .width = 50, .height = 50  },
     { .id = PatchSelectPage::Patch10ButtonHotspotId, .x = 249, .y = 135, .width = 50, .height = 50  }
 };
-
-/*
-class PatchLoadPage: public PatchSelectPage {
-    public:
-        PatchLoadPage(Pager &pager)
-        : PatchSelectPage(pager)
-        {
-        }
-
-    private:
-        virtual void drawTitle(int x, int y)
-        {
-            drawText(x, y, "Load Patch");
-        }
-
-        virtual void onPatchSelected(uint8_t patch)
-        {
-        }
-};
-
-class PatchSavePage: public PatchSelectPage {
-    public:
-        PatchSavePage(Pager &pager)
-        : PatchSelectPage(pager)
-        {
-        }
-
-    private:
-        virtual void drawTitle(int x, int y)
-        {
-            drawText(x, y, "Save Patch");
-        }
-
-        virtual void onPatchSelected(uint8_t patch)
-        {
-        }
-};
-*/
-
 
 class PatchOptionsPage: public Page {
     public:
@@ -1278,7 +524,6 @@ class SettingsPage: public Page {
         : Page(pager), m_reload_settings(true), m_midi_channel(0)
         {
             setHotspots(NumberOfPageHotspots, s_hotspots);
-            // TODO: Read from EEPROM
         }
 
         virtual ~SettingsPage() { }
@@ -1343,6 +588,7 @@ class SettingsPage: public Page {
 #if !defined(MOCK_ARDUINO)
             EEPROM.put(EEPROM_SETTINGS_OFFSET, settings);
 #endif
+            // TODO: Restart MIDI input
         }
 
         bool m_reload_settings;
@@ -1700,86 +946,28 @@ uint8_t getMostCommonPotReading(uint8_t pot_index)
     return most_popular;
 }
 
-/*/
-void muxRead()
+void processMidi()
 {
-    selectMuxChannel(mux_channel);
-
-    // TODO: Figure out why analog pins aren't defined for mock Arduino
 #if !defined(MOCK_ARDUINO)
-    pot_readings[mux_channel][pot_reading_index] = analogRead(MUX_1_COM_PIN) >> 3;
-    pot_readings[16 + mux_channel][pot_reading_index] = analogRead(MUX_2_COM_PIN) >> 3;
-    pot_readings[32 + mux_channel][pot_reading_index] = analogRead(MUX_3_COM_PIN) >> 3;
-    if (mux_channel < 8) {
-        pot_readings[48 + mux_channel][pot_reading_index] = analogRead(MAIN_MUX_COM_PIN) >> 3;
+    if (MIDI.read()) {
+        last_midi_event_time = millis();
+        top_bar.setMidiIndicatorState(true);
     }
 #endif
-
-    if (++ channel == 16) {
-        ++ pot_reading_index;
-        pot_reading_index %= POT_READING_BUFFER_SIZE;
-    }
 }
-    */
 
-void handleInput(bool warmup)
+void processTouchscreenInput()
 {
-    unsigned long pot_read_time_start = millis();
-    for (int mux_channel = 0; mux_channel < 16; ++ mux_channel) {
-        selectMuxChannel(mux_channel);
-
-        // TODO: Figure out why analog pins aren't defined for mock Arduino
+    bool is_touched = touchscreen.touched();
+    TS_Point point(0, 0, 0);
+    
+    if (is_touched) {
+        point = touchscreen.getPoint();
 #if !defined(MOCK_ARDUINO)
-        pot_readings[mux_channel][pot_reading_index] = analogRead(MUX_1_COM_PIN) >> 3;
-        pot_readings[16 + mux_channel][pot_reading_index] = analogRead(MUX_2_COM_PIN) >> 3;
-        pot_readings[32 + mux_channel][pot_reading_index] = analogRead(MUX_3_COM_PIN) >> 3;
-        if (mux_channel < 8) {
-            pot_readings[48 + mux_channel][pot_reading_index] = analogRead(MAIN_MUX_COM_PIN) >> 3;
-        }
-
-        if (MIDI.read()) {
-            last_midi_event_time = millis();
-            top_bar.setMidiIndicatorState(true);
-        }
+        point = TS_Point(319 - point.y, point.x, point.z);
 #endif
-
-        bool is_touched = touchscreen.touched();
-        TS_Point point(0, 0, 0);
-        
-        if (is_touched) {
-            point = touchscreen.getPoint();
-#if !defined(MOCK_ARDUINO)
-            point = TS_Point(319 - point.y, point.x, point.z);
-#endif
-        }
-        ui.handleTouchInput(is_touched, point.x, point.y);
     }
-
-#if WITH_DEBUG_PAGE == 1
-    if (pager.isCurrentPage(debug_page)) {
-        debug_page.updatePotReadTimeMeasurement(millis() - pot_read_time_start);
-    }
-#endif
-
-    ++ pot_reading_index;
-    pot_reading_index %= POT_READING_BUFFER_SIZE;
-
-    for (int i = 0; i < 56; ++ i) {
-        uint8_t value = getMostCommonPotReading(i);
-        if (value != previous_pot_readings[i]) {
-            previous_pot_readings[i] = value;
-#if WITH_DEBUG_PAGE == 1
-            if (pager.isCurrentPage(debug_page)) {
-                debug_page.updateControlValue(i / 16, i % 16, value);
-            }
-#endif
-        }
-    }
-
-    if ((last_midi_event_time > 0) && (millis() - last_midi_event_time >= MIDI_INDICATOR_BLINK_TIME)) {
-        top_bar.setMidiIndicatorState(false);
-        last_midi_event_time = 0;
-    }
+    ui.handleTouchInput(is_touched, point.x, point.y);
 }
 
 void firstTimeInit()
@@ -1822,12 +1010,14 @@ void setup()
     ui.begin(BACKGROUND_COLOUR);
 
     Splash splash(ui);
+    digitalWrite(DISPLAY_BACKLIGHT_PIN, HIGH);
 
     splash.show();
 #ifdef MOCK_ARDUINO
-    UiProcessEvents();   /* paint the splash before blocking in delay() */
+    // Ensures the mock Arduino screen displays the splash
+    UiProcessEvents();
 #endif
-    digitalWrite(DISPLAY_BACKLIGHT_PIN, HIGH);
+
 
 #if !defined(MOCK_ARDUINO)
     EEPROM.get(EEPROM_SETTINGS_OFFSET, settings);
@@ -1842,9 +1032,24 @@ void setup()
     MIDI.setThruFilterMode(midi::Thru::SameChannel);
 #endif
 
-    // Only take initial pot readings
+    // Take initial pot readings to prime the buffer
+    // Each read is preceded by a dummy read to try to improve stability
     for (int i = 0; i < POT_READING_BUFFER_SIZE; ++ i) {
-        handleInput(true);
+        for (int mux_channel = 0; mux_channel < 16; ++ mux_channel) {
+            selectMuxChannel(mux_channel);
+#if !defined(MOCK_ARDUINO)
+            analogRead(MUX_1_COM_PIN);
+            pot_readings[mux_channel][i] = analogRead(MUX_1_COM_PIN) >> 2;
+            analogRead(MUX_2_COM_PIN);
+            pot_readings[16 + mux_channel][i] = analogRead(MUX_2_COM_PIN) >> 2;
+            analogRead(MUX_3_COM_PIN);
+            pot_readings[32 + mux_channel][i] = analogRead(MUX_3_COM_PIN) >> 2;
+            if (mux_channel < 8) {
+                analogRead(MAIN_MUX_COM_PIN);
+                pot_readings[48 + mux_channel][i] = analogRead(MAIN_MUX_COM_PIN) >> 2;
+            }
+#endif
+        }
     }
 
     delay(1000);
@@ -1859,6 +1064,61 @@ void setup()
 
 void loop()
 {
-    handleInput(false);
+    unsigned long pot_read_time_start = millis();
+
+    for (int mux_channel = 0; mux_channel < 16; ++ mux_channel) {
+        selectMuxChannel(mux_channel);
+
+        // TODO: Figure out why analog pins aren't defined for mock Arduino
+#if !defined(MOCK_ARDUINO)
+        // Each read is preceded by a dummy read to try to improve stability
+        analogRead(MUX_1_COM_PIN);
+        pot_readings[mux_channel][pot_reading_index] = analogRead(MUX_1_COM_PIN) >> 2;
+        processMidi();
+
+        analogRead(MUX_2_COM_PIN);
+        pot_readings[16 + mux_channel][pot_reading_index] = analogRead(MUX_2_COM_PIN) >> 2;
+        processMidi();
+
+        analogRead(MUX_3_COM_PIN);
+        pot_readings[32 + mux_channel][pot_reading_index] = analogRead(MUX_3_COM_PIN) >> 2;
+        processMidi();
+
+        if (mux_channel < 8) {
+            analogRead(MAIN_MUX_COM_PIN);
+            pot_readings[48 + mux_channel][pot_reading_index] = analogRead(MAIN_MUX_COM_PIN) >> 2;
+        }
+        processMidi();
+
+#endif
+        processTouchscreenInput();
+    }
+
+#if WITH_DEBUG_PAGE == 1
+    if (pager.isCurrentPage(debug_page)) {
+        debug_page.updatePotReadTimeMeasurement(millis() - pot_read_time_start);
+    }
+#endif
+
+    ++ pot_reading_index;
+    pot_reading_index %= POT_READING_BUFFER_SIZE;
+
+    for (int i = 0; i < 56; ++ i) {
+        uint8_t value = getMostCommonPotReading(i);
+        if (abs((int16_t)value - (int16_t)previous_pot_readings[i]) > 1) {
+            previous_pot_readings[i] = value;
+#if WITH_DEBUG_PAGE == 1
+            if (pager.isCurrentPage(debug_page)) {
+                debug_page.updateControlValue(i / 16, i % 16, value);
+            }
+#endif
+        }
+    }
+
+    if ((last_midi_event_time > 0) && (millis() - last_midi_event_time >= MIDI_INDICATOR_BLINK_TIME)) {
+        top_bar.setMidiIndicatorState(false);
+        last_midi_event_time = 0;
+    }
+
     ui.process();
 }
