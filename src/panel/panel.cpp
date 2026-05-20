@@ -218,7 +218,6 @@ class NotificationPage: public Page {
         Page *m_next_page;
 };
 
-
 #define PAGE_HEADER_Y   11
 
 class PatchSelectPage: public Page {
@@ -403,7 +402,6 @@ const Hotspot PROGMEM PatchOptionsPage::s_hotspots[PatchOptionsPage::NumberOfPag
     { .id = PatchOptionsPage::SaveButtonHotspotId,     .x = 225, .y = 75, .width = 50, .height = 75 }
 };
 
-
 #if WITH_DEBUG_PAGE == 1
 class DebugPage: public Page {
     public:
@@ -517,7 +515,6 @@ const Hotspot PROGMEM DebugPage::s_hotspots[DebugPage::NumberOfHotspots] = {
 };
 #endif
 
-
 class SettingsPage: public Page {
     public:
         SettingsPage(Pager &pager)
@@ -611,7 +608,6 @@ const Hotspot PROGMEM SettingsPage::s_hotspots[SettingsPage::NumberOfPageHotspot
     { .id = SettingsPage::MidiChannelIncrementButtonHotspotId,  .x = 102, .y = 90,  .width = 50, .height = 50 },
     { .id = SettingsPage::DebugButtonHotspotId,                 .x = 270, .y = 160, .width = 40, .height = 40 }
 };
-
 
 class MainPage: public Page {
     public:
@@ -714,7 +710,6 @@ const Hotspot PROGMEM MainPage::s_hotspots[MainPage::NumberOfHotspots] = {
     { .id = MainPage::SettingsButtonHotspotId, .x = 188, .y = 156, .width = 48, .height = 60 }
 };
 
-
 class Splash: public Panel {
     public:
         Splash(UI &ui)
@@ -737,7 +732,6 @@ class Splash: public Panel {
         virtual void process() { }
 };
 
-
 UI ui(screen);
 TopBar top_bar(ui);
 Pager pager(ui, 0, 24, 320, 216);
@@ -750,7 +744,6 @@ SettingsPage settings_page(pager);
 #if WITH_DEBUG_PAGE == 1
 DebugPage debug_page(pager);
 #endif
-
 
 void NotificationPage::process()
 {
@@ -767,7 +760,6 @@ void NotificationPage::process()
         pager.setPage(*m_next_page);
     }
 }
-
 
 void MainPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y)
 {
@@ -1017,7 +1009,6 @@ void setup()
     // Ensures the mock Arduino screen displays the splash
     UiProcessEvents();
 #endif
-
 
 #if !defined(MOCK_ARDUINO)
     EEPROM.get(EEPROM_SETTINGS_OFFSET, settings);
