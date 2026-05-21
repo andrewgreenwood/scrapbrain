@@ -205,7 +205,7 @@ int8_t midiControllerToControlIndex(int8_t midi_controller)
 {
     switch (midi_controller) {
         CONTROL_CASE(LFORate)
-        // TODO: algo
+        CONTROL_CASE(Algorithm)
         CONTROL_CASE(AMDepth)
         CONTROL_CASE(PMDepth)
         OP_CONTROL_CASE(AMStart)
@@ -770,7 +770,7 @@ class SettingsPage: public Page {
 #if !defined(MOCK_ARDUINO)
             EEPROM.put(EEPROM_SETTINGS_OFFSET, settings);
 #endif
-            MIDI.setInputChannel(settings.midi_channel);
+            MIDI.setInputChannel(settings.midi_channel + 1);
         }
 
         bool m_reload_settings;
@@ -857,8 +857,11 @@ class MainPage: public Page {
 
         void setAlgorithm(uint8_t algorithm)
         {
-            if (algorithm < 8) {
+            if ((algorithm < 8) && (algorithm != m_algorithm)) {
+                forceBackgroundColour(true);
+                drawCurrentAlgorithm();
                 m_algorithm = algorithm;
+                forceBackgroundColour(false);
                 drawCurrentAlgorithm();
             }
         }
@@ -1191,7 +1194,7 @@ void processTouchscreenInput()
 void firstTimeInit()
 {
     settings.signature = EEPROM_SIGNATURE;
-    settings.midi_channel = 1;
+    settings.midi_channel = 0;
 
 #if !defined(MOCK_ARDUINO)
     EEPROM.put(EEPROM_SETTINGS_OFFSET, settings);
@@ -1245,7 +1248,7 @@ void setup()
         // TODO
     }
 
-    MIDI.begin(settings.midi_channel);
+    MIDI.begin(settings.midi_channel + 1);
     MIDI.setThruFilterMode(midi::Thru::SameChannel);
 #endif
 
