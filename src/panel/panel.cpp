@@ -35,6 +35,7 @@
 
 #include "panelkit.h"
 #include "graphics.h"
+#include "common.h"
 #include "debug.h"
 
 #ifdef MOCK_ARDUINO
@@ -60,6 +61,190 @@ struct Settings {
     uint8_t signature;
     uint8_t midi_channel;
 } settings;
+
+enum ControlIndex {
+    // Mux A
+    Op1_Sustain_ControlIndex = 0,
+    Op1_Decay2_ControlIndex,
+    Op1_Release_ControlIndex,
+    Op1_AMStart_ControlIndex,
+    Op1_Level_ControlIndex,
+    Op1_Start_ControlIndex,
+    Op1_Velocity_ControlIndex,
+    Op1_EnvScale_ControlIndex,
+    Op1_Detune_ControlIndex,
+    Op1_Decay1_ControlIndex,
+    Op1_FreqX_ControlIndex,
+    Op1_Attack_ControlIndex,
+    Op2_Attack_ControlIndex,
+    Op2_Detune_ControlIndex,
+    Op2_Decay1_ControlIndex,
+    Op2_FreqX_ControlIndex,
+
+    // Mux B
+    Op2_Sustain_ControlIndex,
+    Op2_Decay2_ControlIndex,
+    Op2_Release_ControlIndex,
+    Op2_AMStart_ControlIndex,
+    Op2_Level_ControlIndex,
+    Op2_Start_ControlIndex,
+    Op2_Velocity_ControlIndex,
+    Op2_EnvScale_ControlIndex,
+    Op3_Sustain_ControlIndex,
+    Op3_Decay2_ControlIndex,
+    Op3_Release_ControlIndex,
+    Op3_AMStart_ControlIndex,
+    Op3_Level_ControlIndex,
+    Op3_Start_ControlIndex,
+    Op3_Velocity_ControlIndex,
+    Op3_EnvScale_ControlIndex,
+
+    // Mux C
+    Op4_Sustain_ControlIndex,
+    Op4_Decay2_ControlIndex,
+    Op4_Release_ControlIndex,
+    Op4_AMStart_ControlIndex,
+    Op4_Level_ControlIndex,
+    Op4_Start_ControlIndex,
+    Op4_Velocity_ControlIndex,
+    Op4_EnvScale_ControlIndex,
+    Op3_Attack_ControlIndex,
+    Op3_Detune_ControlIndex,
+    Op3_Decay1_ControlIndex,
+    Op3_FreqX_ControlIndex,
+    Op4_FreqX_ControlIndex,
+    Op4_Attack_ControlIndex,
+    Op4_Detune_ControlIndex,
+    Op4_Decay1_ControlIndex,
+
+    // Mux D
+    UNUSED1_ControlIndex,
+    UNUSED2_ControlIndex,
+    Op1_Feedback_ControlIndex,
+    UNUSED3_ControlIndex,
+    LFORate_ControlIndex,
+    AMDepth_ControlIndex,
+    PMStart_ControlIndex,
+    PMDepth_ControlIndex,
+
+    NumberOfPots,
+
+    // Additional controls that aren't physical pots
+    Algorithm_ControlIndex = NumberOfPots,
+
+    NumberOfControls
+};
+
+const int8_t control_index_to_midi_controller_map[NumberOfControls] PROGMEM = {
+    Op1_Sustain_MidiController,
+    Op1_Decay2_MidiController,
+    Op1_Release_MidiController,
+    Op1_AMStart_MidiController,
+    Op1_Level_MidiController,
+    Op1_Start_MidiController,
+    Op1_Velocity_MidiController,
+    Op1_EnvScale_MidiController,
+    Op1_Detune_MidiController,
+    Op1_Decay1_MidiController,
+    Op1_FreqX_MidiController,
+    Op1_Attack_MidiController,
+    Op2_Attack_MidiController,
+    Op2_Detune_MidiController,
+    Op2_Decay1_MidiController,
+    Op2_FreqX_MidiController,
+    Op2_Sustain_MidiController,
+    Op2_Decay2_MidiController,
+    Op2_Release_MidiController,
+    Op2_AMStart_MidiController,
+    Op2_Level_MidiController,
+    Op2_Start_MidiController,
+    Op2_Velocity_MidiController,
+    Op2_EnvScale_MidiController,
+    Op3_Sustain_MidiController,
+    Op3_Decay2_MidiController,
+    Op3_Release_MidiController,
+    Op3_AMStart_MidiController,
+    Op3_Level_MidiController,
+    Op3_Start_MidiController,
+    Op3_Velocity_MidiController,
+    Op3_EnvScale_MidiController,
+    Op4_Sustain_MidiController,
+    Op4_Decay2_MidiController,
+    Op4_Release_MidiController,
+    Op4_AMStart_MidiController,
+    Op4_Level_MidiController,
+    Op4_Start_MidiController,
+    Op4_Velocity_MidiController,
+    Op4_EnvScale_MidiController,
+    Op3_Attack_MidiController,
+    Op3_Detune_MidiController,
+    Op3_Decay1_MidiController,
+    Op3_FreqX_MidiController,
+    Op4_FreqX_MidiController,
+    Op4_Attack_MidiController,
+    Op4_Detune_MidiController,
+    Op4_Decay1_MidiController,
+    -1,
+    -1,
+    Op1_Feedback_MidiController,
+    -1,
+    LFORate_MidiController,
+    AMDepth_MidiController,
+    PMStart_MidiController,
+    PMDepth_MidiController,
+    Algorithm_MidiController
+};
+
+#define CONTROL_CASE(name)      case name##_MidiController: return name##_ControlIndex;
+#define OP_CONTROL_CASE(name)   CONTROL_CASE(Op1_##name) \
+                                CONTROL_CASE(Op2_##name) \
+                                CONTROL_CASE(Op3_##name) \
+                                CONTROL_CASE(Op4_##name)
+
+int8_t midiControllerToControlIndex(int8_t midi_controller)
+{
+    switch (midi_controller) {
+        CONTROL_CASE(LFORate)
+        // TODO: algo
+        CONTROL_CASE(AMDepth)
+        CONTROL_CASE(PMDepth)
+        OP_CONTROL_CASE(AMStart)
+        OP_CONTROL_CASE(Level)
+        OP_CONTROL_CASE(Velocity)
+        OP_CONTROL_CASE(Start)
+        OP_CONTROL_CASE(FreqX)
+        OP_CONTROL_CASE(Detune)
+        CONTROL_CASE(Op1_Feedback)
+        CONTROL_CASE(PMStart)
+        OP_CONTROL_CASE(Attack)
+        OP_CONTROL_CASE(Decay1)
+        OP_CONTROL_CASE(Sustain)
+        OP_CONTROL_CASE(Decay2)
+        OP_CONTROL_CASE(Release)
+        OP_CONTROL_CASE(EnvScale)
+        default:    return -1;
+    };
+}
+
+#undef CONTROL_CASE
+#undef OP_CONTROL_CASE
+
+int8_t controlIndexToMidiController(int8_t control_index)
+{
+    if ((control_index < 0) || (control_index >= NumberOfControls))
+        return -1;
+
+    return control_index_to_midi_controller_map[control_index];
+}
+
+// Current control values (loaded from patch, overridden by MIDI or panel)
+uint8_t effective_control_values[NumberOfControls];
+
+// Number of mux channels is (3x16)+8 == 56 (some are unused)
+#define POT_READING_BUFFER_SIZE     4
+uint8_t pot_readings[NumberOfPots][POT_READING_BUFFER_SIZE];
+uint8_t previous_pot_readings[NumberOfPots];
+uint8_t pot_reading_index = 0;
 
 //
 // The title bar and MIDI indicator state
@@ -585,7 +770,7 @@ class SettingsPage: public Page {
 #if !defined(MOCK_ARDUINO)
             EEPROM.put(EEPROM_SETTINGS_OFFSET, settings);
 #endif
-            // TODO: Restart MIDI input
+            MIDI.setInputChannel(settings.midi_channel);
         }
 
         bool m_reload_settings;
@@ -771,6 +956,8 @@ void MainPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, 
                 m_algorithm = hotspot_id - Algorithm1HotspotId;
                 forceBackgroundColour(false);
                 drawCurrentAlgorithm();
+                effective_control_values[Algorithm_ControlIndex] = m_algorithm << 4;
+                MIDI.sendControlChange(Algorithm_MidiController, m_algorithm << 4, settings.midi_channel);
             }
         }
     } else if (type == TouchTapEvent) {
@@ -901,11 +1088,6 @@ void DebugPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x,
 #define MIDI_INDICATOR_BLINK_TIME   250
 unsigned long last_midi_event_time = 0;
 
-#define POT_READING_BUFFER_SIZE     4
-uint8_t pot_readings[56][POT_READING_BUFFER_SIZE];
-uint8_t previous_pot_readings[56];      // TODO: init to ff
-uint8_t pot_reading_index = 0;
-
 static void selectMuxChannel(uint8_t channel)
 {
 #if !defined(MOCK_ARDUINO)
@@ -940,10 +1122,40 @@ uint8_t getMostCommonPotReading(uint8_t pot_index)
 
 void processMidi()
 {
+    int8_t control_index;
+
+    // TODO: Update effective controls based on MIDI input
 #if !defined(MOCK_ARDUINO)
     if (MIDI.read()) {
         last_midi_event_time = millis();
         top_bar.setMidiIndicatorState(true);
+
+        if (MIDI.getType() == midi::ControlChange) {
+            control_index = midiControllerToControlIndex(MIDI.getData1());
+            if (control_index != -1) {
+                effective_control_values[control_index] = MIDI.getData2();
+            }
+        }
+    }
+#endif
+}
+
+void updatePot(uint8_t pot_index, uint8_t value)
+{
+    int8_t midi_controller;
+    ASSERT(pot_index < NumberOfPots);
+    ASSERT(value < 0x80);
+
+    effective_control_values[pot_index] = value;
+
+    midi_controller = controlIndexToMidiController(pot_index);
+    ASSERT(midi_controller != -1);
+    MIDI.sendControlChange(midi_controller, value, settings.midi_channel);
+
+#if WITH_DEBUG_PAGE == 1
+    if (pager.isCurrentPage(debug_page)) {
+        debug_page.updateControlValue(pot_index / 16, pot_index % 16, value);
+        // TODO: Send
     }
 #endif
 }
@@ -1019,7 +1231,7 @@ void setup()
         // TODO
     }
 
-    MIDI.begin(MIDI_CHANNEL_OMNI);
+    MIDI.begin(settings.midi_channel);
     MIDI.setThruFilterMode(midi::Thru::SameChannel);
 #endif
 
@@ -1043,8 +1255,21 @@ void setup()
         }
     }
 
+    // Keep the splash page up briefly to allow the synth some time to be ready
     delay(1000);
-    
+
+    // Select first algorithm (no need to send, will be the voice default)
+    effective_control_values[Algorithm_ControlIndex] = 0;
+
+    // Commit the pot readings
+    for (int i = 0; i < NumberOfPots; ++ i) {
+        uint8_t value = getMostCommonPotReading(i);
+        previous_pot_readings[i] = value;
+        updatePot(i, value >> 1);
+    }
+
+    delay(1000);
+
     digitalWrite(DISPLAY_BACKLIGHT_PIN, LOW);
     splash.hide();
 
@@ -1094,15 +1319,12 @@ void loop()
     ++ pot_reading_index;
     pot_reading_index %= POT_READING_BUFFER_SIZE;
 
-    for (int i = 0; i < 56; ++ i) {
+    for (int i = 0; i < NumberOfPots; ++ i) {
         uint8_t value = getMostCommonPotReading(i);
         if (abs((int16_t)value - (int16_t)previous_pot_readings[i]) > 1) {
             previous_pot_readings[i] = value;
-#if WITH_DEBUG_PAGE == 1
-            if (pager.isCurrentPage(debug_page)) {
-                debug_page.updateControlValue(i / 16, i % 16, value);
-            }
-#endif
+            uint8_t midi_value = value >> 1;
+            updatePot(i, value >> 1);
         }
     }
 
