@@ -234,7 +234,7 @@ int8_t controlIndexToMidiController(int8_t control_index)
     if ((control_index < 0) || (control_index >= NumberOfControls))
         return -1;
 
-    return control_index_to_midi_controller_map[control_index];
+    return (int8_t)pgm_read_byte(&control_index_to_midi_controller_map[control_index]);
 }
 
 // Current control values (loaded from patch, overridden by MIDI or panel)
@@ -855,6 +855,14 @@ class MainPage: public Page {
             drawGraphic(GRAPHIC_ALGORITHM_SELECT, selection_x, selection_y);
         }
 
+        void setAlgorithm(uint8_t algorithm)
+        {
+            if (algorithm < 8) {
+                m_algorithm = algorithm;
+                drawCurrentAlgorithm();
+            }
+        }
+
     private:
         virtual void onEnter() { }
         virtual void onLeave() { }
@@ -1124,7 +1132,6 @@ void processMidi()
 {
     int8_t control_index;
 
-    // TODO: Update effective controls based on MIDI input
 #if !defined(MOCK_ARDUINO)
     if (MIDI.read()) {
         last_midi_event_time = millis();
@@ -1134,6 +1141,14 @@ void processMidi()
             control_index = midiControllerToControlIndex(MIDI.getData1());
             if (control_index != -1) {
                 effective_control_values[control_index] = MIDI.getData2();
+                if (control_index == Algorithm_ControlIndex) {
+                    page.setAlgorithm(MIDI.getData2() >> 4);
+                }
+#if WITH_DEBUG_PAGE == 1
+                if ((pager.isCurrentPage(debug_page)) && (control_index < NumberOfPots)) {
+                    debug_page.updateControlValue(control_index / 16, control_index % 16, MIDI.getData2());
+                }
+#endif
             }
         }
     }
@@ -1155,7 +1170,6 @@ void updatePot(uint8_t pot_index, uint8_t value)
 #if WITH_DEBUG_PAGE == 1
     if (pager.isCurrentPage(debug_page)) {
         debug_page.updateControlValue(pot_index / 16, pot_index % 16, value);
-        // TODO: Send
     }
 #endif
 }
@@ -1323,7 +1337,6 @@ void loop()
         uint8_t value = getMostCommonPotReading(i);
         if (abs((int16_t)value - (int16_t)previous_pot_readings[i]) > 1) {
             previous_pot_readings[i] = value;
-            uint8_t midi_value = value >> 1;
             updatePot(i, value >> 1);
         }
     }
