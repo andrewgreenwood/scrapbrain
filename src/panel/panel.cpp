@@ -264,7 +264,7 @@ void sendControlValue(uint8_t control_index)
     int8_t midi_controller = controlIndexToMidiController(control_index);
     ASSERT(midi_controller != -1);
 #if !defined(MOCK_ARDUINO)
-    MIDI.sendControlChange(midi_controller, effective_control_values[control_index], settings.midi_channel);
+    MIDI.sendControlChange(midi_controller, effective_control_values[control_index], settings.midi_channel + 1);
 #endif
 }
 
@@ -1314,9 +1314,9 @@ void DebugPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x,
     } else if (hotspot_id == NoteTriggerButtonId) {
 # if !defined(MOCK_ARDUINO)
         if (type == TouchStartEvent) {
-            MIDI.sendNoteOn(35, 127, settings.midi_channel);
+            MIDI.sendNoteOn(35, 127, settings.midi_channel + 1);
         } else if (type == TouchEndEvent) {
-            MIDI.sendNoteOff(35, 127, settings.midi_channel);
+            MIDI.sendNoteOff(35, 127, settings.midi_channel + 1);
         }
 #endif
     }
