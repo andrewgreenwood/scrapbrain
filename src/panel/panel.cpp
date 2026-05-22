@@ -237,6 +237,16 @@ int8_t controlIndexToMidiController(int8_t control_index)
     return (int8_t)pgm_read_byte(&control_index_to_midi_controller_map[control_index]);
 }
 
+// Most recently loaded or saved patch (-1 for none)
+#define NO_PATCH    -1
+int8_t selected_patch = NO_PATCH;
+
+// TODO: Pack
+struct Patch {
+    uint8_t controls[NumberOfControls];
+    uint8_t reserved[64 - NumberOfControls];    // pad to 64 bytes length
+};
+
 // Current control values (loaded from patch, overridden by MIDI or panel)
 uint8_t effective_control_values[NumberOfControls];
 
@@ -245,6 +255,98 @@ uint8_t effective_control_values[NumberOfControls];
 uint8_t pot_readings[NumberOfPots][POT_READING_BUFFER_SIZE];
 uint8_t previous_pot_readings[NumberOfPots];
 uint8_t pot_reading_index = 0;
+
+void updateDebugControlDisplay(uint8_t control_index);
+
+// Send current value for a control
+void sendControlValue(uint8_t control_index)
+{
+    int8_t midi_controller = controlIndexToMidiController(control_index);
+    ASSERT(midi_controller != -1);
+#if !defined(MOCK_ARDUINO)
+    MIDI.sendControlChange(midi_controller, effective_control_values[control_index], settings.midi_channel);
+#endif
+}
+
+// Update the current value for a control and send it
+void setControlValue(uint8_t control_index, uint8_t value)
+{
+    ASSERT(control_index < NumberOfControls);
+    ASSERT(value < 0x80);
+
+    if (effective_control_values[control_index] == value) return;
+
+    effective_control_values[control_index] = value;
+    sendControlValue(control_index);
+
+#if WITH_DEBUG_PAGE == 1
+    updateDebugControlDisplay(control_index);
+#endif
+}
+
+static void selectMuxChannel(uint8_t channel)
+{
+#if !defined(MOCK_ARDUINO)
+    PORTD &= 0x0f;
+    PORTD |= channel << 4;
+#endif
+}
+
+uint8_t getMostCommonPotReading(uint8_t pot_index)
+{
+    uint8_t most_popular = 0;
+    int most_popular_count = 0;
+
+    for (int i = 0; i < POT_READING_BUFFER_SIZE; ++ i) {
+        int value = pot_readings[pot_index][i];
+        int count = 0;
+        
+        for (int j = 0; j < POT_READING_BUFFER_SIZE; ++ j) {
+            if (pot_readings[pot_index][j] == value) {
+                ++ count;
+            }
+        }
+
+        if (count > most_popular_count) {
+            most_popular_count = count;
+            most_popular = value;
+        }
+    }
+
+    return most_popular;
+}
+
+// Re-reads all pots (does not affect algorithm)
+void resetControls()
+{
+    // Each read is preceded by a dummy read to try to improve stability
+    for (int i = 0; i < POT_READING_BUFFER_SIZE; ++ i) {
+        for (int mux_channel = 0; mux_channel < 16; ++ mux_channel) {
+            selectMuxChannel(mux_channel);
+#if !defined(MOCK_ARDUINO)
+            analogRead(MUX_1_COM_PIN);
+            pot_readings[mux_channel][i] = analogRead(MUX_1_COM_PIN) >> 2;
+            analogRead(MUX_2_COM_PIN);
+            pot_readings[16 + mux_channel][i] = analogRead(MUX_2_COM_PIN) >> 2;
+            analogRead(MUX_3_COM_PIN);
+            pot_readings[32 + mux_channel][i] = analogRead(MUX_3_COM_PIN) >> 2;
+            if (mux_channel < 8) {
+                analogRead(MAIN_MUX_COM_PIN);
+                pot_readings[48 + mux_channel][i] = analogRead(MAIN_MUX_COM_PIN) >> 2;
+            }
+#endif
+        }
+    }
+
+    // Commit the pot readings
+    for (int i = 0; i < NumberOfPots; ++ i) {
+        uint8_t value = getMostCommonPotReading(i);
+        previous_pot_readings[i] = value;
+        setControlValue(i, value >> 1);
+    }
+}
+
+
 
 //
 // The title bar and MIDI indicator state
@@ -326,9 +428,12 @@ class Page: public Panel {
     public:
         Page(Pager &pager)
         : Panel(pager.m_ui, pager.m_x, pager.m_y, pager.m_width, pager.m_height),
-          m_number_of_hotspots(0), m_hotspots(NULL) { }
+          m_is_active(false), m_number_of_hotspots(0), m_hotspots(NULL) { }
 
         virtual ~Page() { }
+
+        bool isActive()
+        { return m_is_active; }
 
     protected:
         virtual void onEnter() = 0;
@@ -343,6 +448,7 @@ class Page: public Panel {
     private:
         virtual void draw() { }
 
+        bool m_is_active;
         int16_t m_number_of_hotspots;
         const Hotspot *m_hotspots;
 };
@@ -352,9 +458,11 @@ void Pager::setPage(Page &page)
     if (m_current_page) {
         m_current_page->hide();
         m_current_page->onLeave();
+        m_current_page->m_is_active = false;
     }
     m_current_page = &page;
     page.Panel::setHotspots(page.m_number_of_hotspots, page.m_hotspots);
+    m_current_page->m_is_active = true;
     m_current_page->onEnter();
     m_current_page->show();
 }
@@ -403,6 +511,16 @@ class NotificationPage: public Page {
         Page *m_next_page;
 };
 
+// TODO: Move these
+#define MIN_PATCH_INDEX             0
+#define MAX_PATCH_INDEX             19
+
+#define MIN_USER_PATCH_INDEX        0
+#define MAX_USER_PATCH_INDEX        9
+
+#define MIN_FACTORY_PATCH_INDEX     10
+#define MAX_FACTORY_PATCH_INDEX     19
+
 #define PAGE_HEADER_Y   11
 
 class PatchSelectPage: public Page {
@@ -414,13 +532,21 @@ class PatchSelectPage: public Page {
         };
 
         PatchSelectPage(Pager &pager)
-        : Page(pager), m_mode(Factory), m_patch(-1)
+        : Page(pager), m_mode(Factory), m_patch(selected_patch), m_animation_start_time(0),
+          m_animation_frame(0)
         {
             setHotspots(NumberOfHotspots, s_hotspots);
         }
 
         virtual ~PatchSelectPage() { }
 
+        // Must be called before showing the page
+        void setMode(Mode mode)
+        {
+            m_mode = mode;            
+        }
+
+    private:
         virtual void draw()
         {
             const __FlashStringHelper *titles[3] = {
@@ -440,50 +566,121 @@ class PatchSelectPage: public Page {
             setColour(COLOUR_BRIGHT_RED);
             drawText(25, 190, F("not implemented // todo"));
 
-            drawCurrentPatchSelection();
+            drawPatches();
         }
 
-        // Must be called before selecting the page
-        void setMode(Mode mode)
+        // Change which patch button is highlighted
+        void setPatch(int8_t patch_index)
         {
-            m_mode = mode;            
-        }
+            ASSERT((patch_index >= MIN_PATCH_INDEX) && (patch_index <= MAX_PATCH_INDEX));
 
-        void drawCurrentPatchSelection()
-        {
-            int i;
-            char label[3] = {0, 0, 0};
-
-            setTextSize(2);
-
-            for (i = 0; i < 5; ++ i) {
-                setColour(m_patch == i ? COLOUR_BRIGHT_GREEN : COLOUR_WHITE);
-
-                label[0] = '0';
-                label[1] = '1' + i;
-                drawRectangle(25 + (i * 57), 79, 42, 42);
-                drawText(35 + (i * 57), 92, label);
-
-                setColour(m_patch == 5 + i ? COLOUR_BRIGHT_GREEN : COLOUR_GREY);       // TODO: this demos unoccupied slots
-
-                label[0] = i == 4 ? '1' : '0';
-                label[1] = i == 4 ? '0' : '6' + i;
-                drawRectangle(25 + (i * 57), 139, 42, 42);
-                drawText(35 + (i * 57), 152, label);
+            if (patch_index != m_patch) {
+                m_patch = patch_index;
+                if (isActive()) drawPatches();
             }
         }
 
-    private:
+        // Flash the currently selected patch button
+        void flashCurrentPatchButton()
+        {
+            m_animation_start_time = millis();
+            m_animation_frame = 0;
+        }
+
+        void drawPatchButton(int8_t button_index, uint16_t colour)
+        {
+            char label[3] = {0, 0, 0};
+            int x, y;
+
+            if ((button_index < 0) || (button_index > 9)) return;
+
+            setTextSize(2);
+            setColour(colour);
+
+            if (button_index < 5) {
+                x = 25 + (button_index * 57);
+                y = 79;
+                label[0] = '0';
+                label[1] = '1' + button_index;
+            } else {
+                x = 25 + ((button_index - 5) * 57);
+                y = 139;
+                label[0] = button_index == 9 ? '1' : '0';
+                label[1] = button_index == 9 ? '0' : '1' + button_index;
+            }
+
+            drawRectangle(x, y, 42, 42);
+            drawText(x + 10, y + 13, label);
+        }
+
+        void drawPatches()
+        {
+            for (int button_index = 0; button_index < 10; ++ button_index) {
+                int8_t patch_index = getPatchIndexForButton(button_index);
+                uint16_t colour;
+                if (isVacantPatchSlot(patch_index)) {
+                    colour = COLOUR_GREY;
+                } else if (m_patch == patch_index) {
+                    colour = COLOUR_BRIGHT_GREEN;
+                } else {
+                    colour = COLOUR_WHITE;
+                }
+                drawPatchButton(button_index, colour);
+            }
+        }
+
+        // Only user patch slots can be vacant
+        bool isVacantPatchSlot(int8_t patch_index)
+        {
+            ASSERT((patch_index >= -10) && (patch_index <= 10) && (patch_index != 0));
+            if (m_mode == Factory) {
+                return false;
+            } else {
+#if !defined(MOCK_ARDUINO)
+                return EEPROM.read(EEPROM_PATCHES_OFFSET + ((patch_index - 1) * sizeof(Patch))) == 0xff;
+#else
+                // For testing
+                return patch_index > 4;
+#endif
+            }
+        }
+
+        // Using the current mode, get the patch index for a button
+        int8_t getPatchIndexForButton(int8_t button_index)
+        {
+            ASSERT((button_index >= 0) && (button_index <= 9));
+            if (m_mode == Factory) {
+                return MIN_FACTORY_PATCH_INDEX + button_index;
+            } else {
+                return MIN_USER_PATCH_INDEX + button_index;
+            }
+        }
+
+        // Determine which button coresponds to a given patch index
+        int8_t getButtonIndexForPatch(int8_t patch_index)
+        {
+            if (patch_index == NO_PATCH) {
+                return NO_PATCH;
+            } else if ((patch_index >= MIN_FACTORY_PATCH_INDEX) && (patch_index <= MAX_FACTORY_PATCH_INDEX)) {
+                return patch_index - MIN_FACTORY_PATCH_INDEX;
+            } else if ((patch_index >= MIN_USER_PATCH_INDEX) && (patch_index <= MAX_USER_PATCH_INDEX)) {
+                return patch_index - MIN_USER_PATCH_INDEX;
+            }
+            ASSERT(false);
+            return NO_PATCH;
+        }
+
         virtual void onEnter() { }
         virtual void onLeave() { }
 
         virtual void onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y);
 
-        virtual void process() { }
+        virtual void process();
 
         Mode m_mode;
-
-        int8_t m_patch;
+        int8_t &m_patch;
+        unsigned long m_animation_start_time;
+        uint8_t m_animation_frame;
 
         enum {
             BackButtonHotspotId = 1,
@@ -769,8 +966,8 @@ class SettingsPage: public Page {
             settings.midi_channel = m_midi_channel;
 #if !defined(MOCK_ARDUINO)
             EEPROM.put(EEPROM_SETTINGS_OFFSET, settings);
-#endif
             MIDI.setInputChannel(settings.midi_channel + 1);
+#endif
         }
 
         bool m_reload_settings;
@@ -967,8 +1164,7 @@ void MainPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, 
                 m_algorithm = hotspot_id - Algorithm1HotspotId;
                 forceBackgroundColour(false);
                 drawCurrentAlgorithm();
-                effective_control_values[Algorithm_ControlIndex] = m_algorithm << 4;
-                MIDI.sendControlChange(Algorithm_MidiController, m_algorithm << 4, settings.midi_channel);
+                setControlValue(Algorithm_ControlIndex, m_algorithm << 4);
             }
         }
     } else if (type == TouchTapEvent) {
@@ -986,7 +1182,6 @@ void MainPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, 
 
 void PatchOptionsPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y)
 {
-    // TODO: Separate subclasses for factory/load/save
     if (type == TouchTapEvent) {
         switch (hotspot_id) {
             case BackButtonHotspotId:
@@ -994,7 +1189,8 @@ void PatchOptionsPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int
                 break;
 
             case ResetButtonHotspotId:
-                // TODO
+                resetControls();
+                selected_patch = NO_PATCH;
                 notification_page.notify(COLOUR_BRIGHT_GREEN, F("Patch has been reset"), 2000, page);
                 pager.setPage(notification_page);
                 break;
@@ -1017,8 +1213,30 @@ void PatchOptionsPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int
     }
 }
 
+void PatchSelectPage::process()
+{
+    if (m_animation_start_time > 0) {
+        unsigned long elapsed = millis() - m_animation_start_time;
+        uint8_t frame = elapsed / 100;
+
+        if (frame != m_animation_frame) {
+            int8_t button_index = getButtonIndexForPatch(m_patch);
+            drawPatchButton(button_index, frame % 2 ? COLOUR_GREEN : COLOUR_BRIGHT_GREEN);
+            m_animation_frame = frame;
+        }
+
+        // Stop animating
+        if (frame > 5) {
+            m_animation_start_time = 0;
+        }
+    }
+}
+
 void PatchSelectPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x, int16_t y)
 {
+    // Ignore touch events whilst animating (indicates patch load/save)
+    if (m_animation_start_time > 0) return;
+
     if (type == TouchTapEvent) {
         switch (hotspot_id) {
             case BackButtonHotspotId:
@@ -1027,9 +1245,11 @@ void PatchSelectPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int1
 
             default:
                 if ((hotspot_id >= Patch1ButtonHotspotId) && (hotspot_id <= Patch10ButtonHotspotId)) {
-                    m_patch = hotspot_id - Patch1ButtonHotspotId;
-                    ASSERT(m_patch < 10);
-                    drawCurrentPatchSelection();
+                    int8_t patch_index = hotspot_id - Patch1ButtonHotspotId;
+                    if ((m_mode != Load) || (!isVacantPatchSlot(patch_index))) {
+                        setPatch(patch_index);
+                        flashCurrentPatchButton();
+                    }
                 }
                 break;
         }
@@ -1091,45 +1311,20 @@ void DebugPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x,
 {
     if ((type == TouchTapEvent) && (hotspot_id == BackButtonHotspotId)) {
         pager.setPage(settings_page);
-    } else if (type == TouchStartEvent) {
+    } else if (hotspot_id == NoteTriggerButtonId) {
+# if !defined(MOCK_ARDUINO)
+        if (type == TouchStartEvent) {
+            MIDI.sendNoteOn(35, 127, settings.midi_channel);
+        } else if (type == TouchEndEvent) {
+            MIDI.sendNoteOff(35, 127, settings.midi_channel);
+        }
+#endif
     }
 }
 #endif
 
 #define MIDI_INDICATOR_BLINK_TIME   250
 unsigned long last_midi_event_time = 0;
-
-static void selectMuxChannel(uint8_t channel)
-{
-#if !defined(MOCK_ARDUINO)
-    PORTD &= 0x0f;
-    PORTD |= channel << 4;
-#endif
-}
-
-uint8_t getMostCommonPotReading(uint8_t pot_index)
-{
-    uint8_t most_popular = 0;
-    int most_popular_count = 0;
-
-    for (int i = 0; i < POT_READING_BUFFER_SIZE; ++ i) {
-        int value = pot_readings[pot_index][i];
-        int count = 0;
-        
-        for (int j = 0; j < POT_READING_BUFFER_SIZE; ++ j) {
-            if (pot_readings[pot_index][j] == value) {
-                ++ count;
-            }
-        }
-
-        if (count > most_popular_count) {
-            most_popular_count = count;
-            most_popular = value;
-        }
-    }
-
-    return most_popular;
-}
 
 void processMidi()
 {
@@ -1158,24 +1353,14 @@ void processMidi()
 #endif
 }
 
-void updatePot(uint8_t pot_index, uint8_t value)
-{
-    int8_t midi_controller;
-    ASSERT(pot_index < NumberOfPots);
-    ASSERT(value < 0x80);
-
-    effective_control_values[pot_index] = value;
-
-    midi_controller = controlIndexToMidiController(pot_index);
-    ASSERT(midi_controller != -1);
-    MIDI.sendControlChange(midi_controller, value, settings.midi_channel);
-
 #if WITH_DEBUG_PAGE == 1
-    if (pager.isCurrentPage(debug_page)) {
-        debug_page.updateControlValue(pot_index / 16, pot_index % 16, value);
+void updateDebugControlDisplay(uint8_t control_index)
+{
+    if ((control_index < NumberOfPots) && (pager.isCurrentPage(debug_page))) {
+        debug_page.updateControlValue(control_index / 16, control_index % 16, effective_control_values[control_index]);
     }
-#endif
 }
+#endif
 
 void processTouchscreenInput()
 {
@@ -1252,38 +1437,13 @@ void setup()
     MIDI.setThruFilterMode(midi::Thru::SameChannel);
 #endif
 
-    // Take initial pot readings to prime the buffer
-    // Each read is preceded by a dummy read to try to improve stability
-    for (int i = 0; i < POT_READING_BUFFER_SIZE; ++ i) {
-        for (int mux_channel = 0; mux_channel < 16; ++ mux_channel) {
-            selectMuxChannel(mux_channel);
-#if !defined(MOCK_ARDUINO)
-            analogRead(MUX_1_COM_PIN);
-            pot_readings[mux_channel][i] = analogRead(MUX_1_COM_PIN) >> 2;
-            analogRead(MUX_2_COM_PIN);
-            pot_readings[16 + mux_channel][i] = analogRead(MUX_2_COM_PIN) >> 2;
-            analogRead(MUX_3_COM_PIN);
-            pot_readings[32 + mux_channel][i] = analogRead(MUX_3_COM_PIN) >> 2;
-            if (mux_channel < 8) {
-                analogRead(MAIN_MUX_COM_PIN);
-                pot_readings[48 + mux_channel][i] = analogRead(MAIN_MUX_COM_PIN) >> 2;
-            }
-#endif
-        }
-    }
-
     // Keep the splash page up briefly to allow the synth some time to be ready
     delay(1000);
 
-    // Select first algorithm (no need to send, will be the voice default)
-    effective_control_values[Algorithm_ControlIndex] = 0;
+    resetControls();
 
-    // Commit the pot readings
-    for (int i = 0; i < NumberOfPots; ++ i) {
-        uint8_t value = getMostCommonPotReading(i);
-        previous_pot_readings[i] = value;
-        updatePot(i, value >> 1);
-    }
+    // Select first algorithm
+    setControlValue(Algorithm_ControlIndex, 0);
 
     delay(1000);
 
@@ -1340,7 +1500,7 @@ void loop()
         uint8_t value = getMostCommonPotReading(i);
         if (abs((int16_t)value - (int16_t)previous_pot_readings[i]) > 1) {
             previous_pot_readings[i] = value;
-            updatePot(i, value >> 1);
+            setControlValue(i, value >> 1);
         }
     }
 
