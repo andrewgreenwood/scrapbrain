@@ -1,0 +1,29 @@
+Pin map (atmega328):
+0   Serial RX (MIDI in), also connected to FTDI TX
+1   Serial TX, connected to FTDI RX
+2   YM2612 D2
+3   YM2612 clock
+4   YM2612 D4
+5   YM2612 D5
+6   YM2612 D6
+7   YM2612 D7
+8   YM2612 D0
+9   YM2612 D1
+10  Op2 panel mod LED
+11  YM2612 D3
+12  Op3 panel mod LED
+13  Op1 panel mod LED
+A0  -
+A1  YM2612 ~CS
+A2  YM2612 ~WR
+A3  YM2612 ~RD
+A4  YM2612 A0
+A5  YM2612 A1
+
+Port bit masks corresponding to YM2612 data pins:
+PORTB &= ~0x0b      // 00001011
+PORTD &= ~0xf4      // 11110100
+PORTB |= data & 0x0b
+PORTD |= data & 0xf4
+
+Split is necessary to accommodate UART and YM2612 clock

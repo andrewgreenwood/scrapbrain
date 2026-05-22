@@ -1,46 +1,22 @@
 /*
-  PORTB = D8-D13
-  PORTC = A0-A5
-  PORTD = D0-D7
+    SCRAP BRAIN - YM2612 Hardware Synth - Panel
+    Author: Andrew Greenwood
 */
 
-#include <SoftwareSerial.h>
 #include <MIDI.h>
-#include <SPI.h>
 #include "synth.h"
 
-#define YM2612_CLOCK_PIN  9
+// TODO: IC pin?
+#define YM2612_CLOCK_PIN    3
+#define YM2612_CS_PIN       A1
+#define YM2612_WR_PIN       A2
+#define YM2612_RD_PIN       A3
+#define YM2612_A0_PIN       A4
+#define YM2612_A1_PIN       A5
 
-#define YM2612_CS_595_PIN   0x02
-#define YM2612_WR_595_PIN   0x04
-#define YM2612_RD_595_PIN   0x08
-#define YM2612_A0_595_PIN   0x10
-#define YM2612_A1_595_PIN   0x20
-#define YM2612_IC_595_PIN   0x80
-
-void TestShift(uint8_t a)
-{
-    SPI.beginTransaction(SPISettings(14000000, MSBFIRST, SPI_MODE0));
-    SPI.transfer(a);
-    SPI.transfer(0x00);
-    SPI.transfer(0x00);
-    SPI.endTransaction();
-    digitalWrite(10, HIGH);
-    digitalWrite(10, LOW);
-}
-
-uint8_t g_shift_val_a = 0x00;
-
-void shiftWrite(uint8_t p, uint8_t v)
-{
-    if (v == HIGH) {
-        g_shift_val_a |= p;
-    } else {
-        g_shift_val_a &= ~p;
-    }
-
-    TestShift(g_shift_val_a);
-}
+// YM2612 data pins are split between PORTB and PORTD
+#define YM2612_DATA_PORTB_BITMASK   0x0b
+#define YM2612_DATA_PORTD_BITMASK   (~YM2612_DATA_PORTB_BITMASK)
 
 float noteToPitch(float note)
 {
@@ -132,10 +108,10 @@ namespace YM2612 {
         L_R_AMS_PMS_ChannelRegister = 0xb4
     };
 
-    static uint8_t Pack_ALGO_FEED_Value(uint8_t algo, uint8_t feed)
+    static uint8_t pack_ALGO_FEED_Value(uint8_t algo, uint8_t feed)
     { return (algo & 0x7) | ((feed & 0x7) << 3); }
 
-    static uint8_t Pack_L_R_AMS_PMS_Value(uint8_t l, uint8_t r, uint8_t ams, uint8_t pms)
+    static uint8_t pack_L_R_AMS_PMS_Value(uint8_t l, uint8_t r, uint8_t ams, uint8_t pms)
     { return (((l & 0x1) << 7) | ((r & 0x1) << 6) | ((ams & 0x3) << 4) | (pms & 0x7)); }
 
     enum OperatorRegister {
@@ -148,127 +124,113 @@ namespace YM2612 {
         SSGEG_OperatorRegister = 0x90,
     };
 
-    static uint8_t Pack_MUL_DT_Value(uint8_t mul, uint8_t dt)
+    static uint8_t pack_MUL_DT_Value(uint8_t mul, uint8_t dt)
     { return (mul & 0x0f) | ((dt & 0x7) << 4); }
 
-    static uint8_t Pack_AR_RS_Value(uint8_t ar, uint8_t rs)
+    static uint8_t pack_AR_RS_Value(uint8_t ar, uint8_t rs)
     { return (ar & 0x1f) | ((rs & 0x3) << 6); }
 
-    static uint8_t Pack_DR_AMON_Value(uint8_t dr, bool amon)
+    static uint8_t pack_DR_AMON_Value(uint8_t dr, bool amon)
     { return (dr & 0x1f) | (amon << 7); }
 
-    static uint8_t Pack_RR_SL_Value(uint8_t rr, uint8_t sl)
+    static uint8_t pack_RR_SL_Value(uint8_t rr, uint8_t sl)
     { return (rr & 0xf) | ((sl & 0xf) << 4); }
 
-    uint8_t Read()
+    // TODO: Test
+    /*
+    uint8_t read()
     {
-        shiftWrite(YM2612_CS_595_PIN, LOW);
-        //digitalWrite(YM2612_CS_PIN, LOW);
+        uint8_t data;
+
+        digitalWrite(YM2612_CS_PIN, LOW);
         delayMicroseconds(1);
 
-        // D0-D7 as inputs
-        DDRD = 0x00;
+        DDRB &= ~YM2612_DATA_PORTB_BITMASK;
+        DDRD &= ~YM2612_DATA_PORTD_BITMASK;
 
-        shiftWrite(YM2612_A0_595_PIN, LOW);
-        shiftWrite(YM2612_A1_595_PIN, LOW);
-//        digitalWrite(YM2612_A0_PIN, LOW);
-        //digitalWrite(YM2612_A1_PIN, LOW);
+        digitalWrite(YM2612_A0_PIN, LOW);
+        digitalWrite(YM2612_A1_PIN, LOW);
 
         delayMicroseconds(1);
-        shiftWrite(YM2612_RD_595_PIN, LOW);
-        //digitalWrite(YM2612_RD_PIN, LOW);
+        digitalWrite(YM2612_RD_PIN, LOW);
         delayMicroseconds(5);
 
-        uint8_t data = PORTD;
+        data  = PORTB & YM2612_DATA_PORTB_BITMASK;
+        data |= PORTD & YM2612_DATA_PORTD_BITMASK;
 
-        shiftWrite(YM2612_RD_595_PIN, HIGH);
-//        digitalWrite(YM2612_RD_PIN, HIGH);
+        digitalWrite(YM2612_RD_PIN, HIGH);
         delayMicroseconds(5);
 
-        shiftWrite(YM2612_CS_595_PIN, HIGH);
-        //digitalWrite(YM2612_CS_PIN, HIGH);
+        digitalWrite(YM2612_CS_PIN, HIGH);
 
         return data;
     }
+    */
 
     // Wait for YM2612 busy bit to be clear
-    void Wait()
+    // (doesn't work currently)
+    void wait()
     {
         //while (Read() & 0x80) { }
     }
 
-    void Write(uint8_t address, uint8_t data)
+    void write(uint8_t address, uint8_t data)
     {
-        Wait();
+        wait();
 
-        shiftWrite(YM2612_CS_595_PIN, LOW);
-//        digitalWrite(YM2612_CS_PIN, LOW);
+        digitalWrite(YM2612_CS_PIN, LOW);
         delayMicroseconds(1);
 
-        shiftWrite(YM2612_A0_595_PIN, address & 2 ? HIGH : LOW);
-        shiftWrite(YM2612_A1_595_PIN, address & 1 ? HIGH : LOW);
-//        digitalWrite(YM2612_A0_PIN, address & 2 ? HIGH : LOW);
-//        digitalWrite(YM2612_A1_PIN, address & 1 ? HIGH : LOW);
+        digitalWrite(YM2612_A0_PIN, address & 2 ? HIGH : LOW);
+        digitalWrite(YM2612_A1_PIN, address & 1 ? HIGH : LOW);
 
-        // D0-D7 as outputs
-        DDRD = 0xff;
+        DDRB |= YM2612_DATA_PORTB_BITMASK;
+        DDRD |= YM2612_DATA_PORTD_BITMASK;
 
-        PORTD = data;
+        PORTB = (PORTB & ~YM2612_DATA_PORTB_BITMASK) | (data & YM2612_DATA_PORTB_BITMASK);
+        PORTD = (PORTD & ~YM2612_DATA_PORTD_BITMASK) | (data & YM2612_DATA_PORTD_BITMASK);
 
         delayMicroseconds(1);
-        shiftWrite(YM2612_WR_595_PIN, LOW);
-//        digitalWrite(YM2612_WR_PIN, LOW);
+        digitalWrite(YM2612_WR_PIN, LOW);
         delayMicroseconds(5);
 
-        shiftWrite(YM2612_WR_595_PIN, HIGH);
-//        digitalWrite(YM2612_WR_PIN, HIGH);
+        digitalWrite(YM2612_WR_PIN, HIGH);
         delayMicroseconds(5);
 
-        shiftWrite(YM2612_CS_595_PIN, HIGH);
-//        digitalWrite(YM2612_CS_PIN, HIGH);
+        digitalWrite(YM2612_CS_PIN, HIGH);
     }
 
-    void SetGlobalRegister(GlobalRegister reg, uint8_t value)
+    void setGlobalRegister(GlobalRegister reg, uint8_t value)
     {
-        Write(0, reg);
-        Write(2, value);
+        write(0, reg);
+        write(2, value);
     }
 
-    void Init()
+    void init()
     {
-        //pinMode(YM2612_CS_PIN, OUTPUT);
-        //pinMode(YM2612_RD_PIN, OUTPUT);
-        //pinMode(YM2612_WR_PIN, OUTPUT);
-        //pinMode(YM2612_A0_PIN, OUTPUT);
-        //pinMode(YM2612_A1_PIN, OUTPUT);
+        DDRB &= ~YM2612_DATA_PORTB_BITMASK;
+        DDRD &= ~YM2612_DATA_PORTD_BITMASK;
 
-        // D0-D7 as outputs
-        DDRD |= 0xff;
+        pinMode(YM2612_CS_PIN, OUTPUT);
+        pinMode(YM2612_RD_PIN, OUTPUT);
+        pinMode(YM2612_WR_PIN, OUTPUT);
+        pinMode(YM2612_A0_PIN, OUTPUT);
+        pinMode(YM2612_A1_PIN, OUTPUT);
 
-        shiftWrite(YM2612_IC_595_PIN, HIGH);
-        shiftWrite(YM2612_CS_595_PIN, HIGH);
-        shiftWrite(YM2612_RD_595_PIN, HIGH);
-        shiftWrite(YM2612_WR_595_PIN, HIGH);
-        shiftWrite(YM2612_A0_595_PIN, LOW);
-        shiftWrite(YM2612_A1_595_PIN, LOW);
-        //digitalWrite(YM2612_CS_PIN, HIGH);
-        //digitalWrite(YM2612_RD_PIN, HIGH);
-        //digitalWrite(YM2612_WR_PIN, HIGH);
-        //digitalWrite(YM2612_A0_PIN, LOW);
-        //digitalWrite(YM2612_A1_PIN, LOW);
+        digitalWrite(YM2612_CS_PIN, HIGH);
+        digitalWrite(YM2612_RD_PIN, HIGH);
+        digitalWrite(YM2612_WR_PIN, HIGH);
+        digitalWrite(YM2612_A0_PIN, LOW);
+        digitalWrite(YM2612_A1_PIN, LOW);
 
         // Output 8MHz PWM for clock
         pinMode(YM2612_CLOCK_PIN, OUTPUT);
-        // Timer compare mode for channel A
-        TCCR1A = _BV(COM1A0);
-        // Timer control register B (waveform generation mode - CTC?, no prescaling)
-        TCCR1B = _BV(WGM12) | _BV(CS10);
-        // Timer control register C
-        TCCR1C = 0;
-        TCNT1 = 0;
-        OCR1A = 0;
+        TCCR2A = bit(COM2B0) | bit(WGM21);
+        TCCR2B = bit(CS20);
+        TCNT2 = 0;
+        OCR2B = 0;
 
-        // Initialise (NOTE: hardcoded pin!)    - DAC CS ?
+        // Initialise (TODO)
         //pinMode(A0, OUTPUT);
         //digitalWrite(A0, LOW);
         //delay(10);
@@ -276,26 +238,26 @@ namespace YM2612 {
         //delay(10);
 
         // Reset and stop timers, set channel 3 to normal mode
-        SetGlobalRegister(Channel3ModeAndTimer_GlobalRegister, 0x00);
-        SetGlobalRegister(TimerAFrequencyHigh_GlobalRegister, 0x00);
-        SetGlobalRegister(TimerAFrequencyLow_GlobalRegister, 0x00);
-        SetGlobalRegister(TimerBFrequency_GlobalRegister, 0x00);
+        setGlobalRegister(Channel3ModeAndTimer_GlobalRegister, 0x00);
+        setGlobalRegister(TimerAFrequencyHigh_GlobalRegister, 0x00);
+        setGlobalRegister(TimerAFrequencyLow_GlobalRegister, 0x00);
+        setGlobalRegister(TimerBFrequency_GlobalRegister, 0x00);
 
         // LFO off
-        //SetGlobalRegister(LFO_GlobalRegister, 0x00);
-        SetGlobalRegister(LFO_GlobalRegister, 0x08);        // TESTING ONLY
+        setGlobalRegister(LFO_GlobalRegister, 0x00);
+        //setGlobalRegister(LFO_GlobalRegister, 0x08);        // TESTING ONLY
 
         // Note off (all channels)
-        SetGlobalRegister(Key_GlobalRegister, 0x00);
-        SetGlobalRegister(Key_GlobalRegister, 0x01);
-        SetGlobalRegister(Key_GlobalRegister, 0x02);
-        SetGlobalRegister(Key_GlobalRegister, 0x04);
-        SetGlobalRegister(Key_GlobalRegister, 0x05);
-        SetGlobalRegister(Key_GlobalRegister, 0x06);
+        setGlobalRegister(Key_GlobalRegister, 0x00);
+        setGlobalRegister(Key_GlobalRegister, 0x01);
+        setGlobalRegister(Key_GlobalRegister, 0x02);
+        setGlobalRegister(Key_GlobalRegister, 0x04);
+        setGlobalRegister(Key_GlobalRegister, 0x05);
+        setGlobalRegister(Key_GlobalRegister, 0x06);
 
         // Turn off DAC
-        SetGlobalRegister(Key_GlobalRegister, 0x00);
-        SetGlobalRegister(DACEnable_GlobalRegister, 0x00);
+        setGlobalRegister(Key_GlobalRegister, 0x00);
+        setGlobalRegister(DACEnable_GlobalRegister, 0x00);
     }
 
     class Voice: public SynthNote {
@@ -310,38 +272,38 @@ namespace YM2612 {
             virtual ~Voice()
             { }
 
-            virtual void SetPitch(uint8_t note, int16_t bend_amount);
+            virtual void setPitch(uint8_t note, int16_t bend_amount);
 
-            virtual void On(uint8_t velocity);
+            virtual void on(uint8_t velocity);
 
-            virtual uint16_t Off();
+            virtual uint16_t off();
 
-            virtual void End()
+            virtual void end()
             {
             }
 
-            virtual void SetControl(uint8_t control, int16_t value);
+            virtual void setControl(uint8_t control, int16_t value);
 
-            virtual void Update(uint32_t elapsed);
+            virtual void update(uint32_t elapsed);
 
         private:
-            void UpdateChannelRegister(uint8_t reg);
+            void updateChannelRegister(uint8_t reg);
 
-            void UpdateOperatorRegister(uint8_t op, uint8_t reg);
+            void updateOperatorRegister(uint8_t op, uint8_t reg);
 
-            void SetChannelRegister(ChannelRegister reg, uint8_t value)
+            void setChannelRegister(ChannelRegister reg, uint8_t value)
             {
                 int base_address = m_fm_channel < 3 ? 0 : 1;
-                Write(base_address, reg + (m_fm_channel % 3));
-                Write(base_address + 2, value);
+                write(base_address, reg + (m_fm_channel % 3));
+                write(base_address + 2, value);
             }
 
-            void SetOperatorRegister(uint8_t op, OperatorRegister reg, uint8_t value)
+            void setOperatorRegister(uint8_t op, OperatorRegister reg, uint8_t value)
             {
                 static uint8_t reg_offset[4] = {0x0, 0x8, 0x4, 0xc};
                 int base_address = m_fm_channel < 3 ? 0 : 1;
-                Write(base_address, reg + (m_fm_channel % 3) + reg_offset[op]);
-                Write(base_address + 2, value);
+                write(base_address, reg + (m_fm_channel % 3) + reg_offset[op]);
+                write(base_address + 2, value);
             }
 
             Controls *m_controls;
@@ -375,13 +337,13 @@ namespace YM2612 {
             virtual ~Synth()
             { }
 
-            static void Init();
+            static void init();
 
-            virtual SynthNote* AllocateNote(uint8_t channel);
+            virtual SynthNote* allocateNote(uint8_t channel);
 
-            virtual void FreeNote(SynthNote *voice);
+            virtual void freeNote(SynthNote *voice);
 
-            virtual int16_t SetControl(uint8_t channel, uint8_t control, uint8_t value);
+            virtual int16_t setControl(uint8_t channel, uint8_t control, uint8_t value);
 
         private:
             Voice m_voices[6];
@@ -389,7 +351,7 @@ namespace YM2612 {
             Controls m_controls[16];
     };
 
-    SynthNote* Synth::AllocateNote(uint8_t channel)
+    SynthNote* Synth::allocateNote(uint8_t channel)
     {
         for (int i = 0; i < 6; ++ i) {
             if (!(m_allocated_voice_bitmap & (1 << i))) {
@@ -402,7 +364,7 @@ namespace YM2612 {
         return NULL;
     }
 
-    void Synth::FreeNote(SynthNote *voice)
+    void Synth::freeNote(SynthNote *voice)
     {
         int i;
         for (i = 0; i < 6; ++ i) {
@@ -414,7 +376,7 @@ namespace YM2612 {
     }
 
     // This packs the value for the register that needs updating, whilst also saving
-    int16_t Synth::SetControl(uint8_t channel, uint8_t control, uint8_t value)
+    int16_t Synth::setControl(uint8_t channel, uint8_t control, uint8_t value)
     {
         #define INVERT(v) \
             (127-v)
@@ -427,24 +389,24 @@ namespace YM2612 {
 
         switch (control) {
             case 3:
-                SetGlobalRegister(LFO_GlobalRegister, ScaleControlValue(value, 7, 15));
+                setGlobalRegister(LFO_GlobalRegister, scaleControlValue(value, 7, 15));
                 break;
 
             case 9:
-                return Pack_ALGO_FEED_Value(CHANNEL_CONTROL(algorithm) = value >> 4,
+                return pack_ALGO_FEED_Value(CHANNEL_CONTROL(algorithm) = value >> 4,
                                             CHANNEL_CONTROL(op1_feedback));
             case 10:
-                return Pack_L_R_AMS_PMS_Value(CHANNEL_CONTROL(left_output_enable) = value <= 84,
+                return pack_L_R_AMS_PMS_Value(CHANNEL_CONTROL(left_output_enable) = value <= 84,
                                               CHANNEL_CONTROL(right_output_enable) = value >= 42,
                                               CHANNEL_CONTROL(am_sensitivity),
                                               CHANNEL_CONTROL(pm_sensitivity));
             case 14:
-                return Pack_L_R_AMS_PMS_Value(CHANNEL_CONTROL(left_output_enable),
+                return pack_L_R_AMS_PMS_Value(CHANNEL_CONTROL(left_output_enable),
                                               CHANNEL_CONTROL(right_output_enable),
                                               CHANNEL_CONTROL(am_sensitivity),
                                               CHANNEL_CONTROL(pm_sensitivity) >> 4);
             case 15:
-                return Pack_L_R_AMS_PMS_Value(CHANNEL_CONTROL(left_output_enable),
+                return pack_L_R_AMS_PMS_Value(CHANNEL_CONTROL(left_output_enable),
                                               CHANNEL_CONTROL(right_output_enable),
                                               CHANNEL_CONTROL(am_sensitivity) >> 5,
                                               CHANNEL_CONTROL(pm_sensitivity));
@@ -481,95 +443,95 @@ namespace YM2612 {
             case 31:
                 return OP_CONTROL(3, start) = value;
             case 70:
-                return Pack_MUL_DT_Value(OP_CONTROL(0, frequency_multiplier) = value >> 3,
+                return pack_MUL_DT_Value(OP_CONTROL(0, frequency_multiplier) = value >> 3,
                                          OP_CONTROL(0, detune));
             case 71:
-                return Pack_MUL_DT_Value(OP_CONTROL(1, frequency_multiplier) = value >> 3,
+                return pack_MUL_DT_Value(OP_CONTROL(1, frequency_multiplier) = value >> 3,
                                          OP_CONTROL(1, detune));
             case 72:
-                return Pack_MUL_DT_Value(OP_CONTROL(2, frequency_multiplier) = value >> 3,
+                return pack_MUL_DT_Value(OP_CONTROL(2, frequency_multiplier) = value >> 3,
                                          OP_CONTROL(2, detune));
             case 73:
-                return Pack_MUL_DT_Value(OP_CONTROL(3, frequency_multiplier) = value >> 3,
+                return pack_MUL_DT_Value(OP_CONTROL(3, frequency_multiplier) = value >> 3,
                                          OP_CONTROL(3, detune));
             case 74:
-                return Pack_MUL_DT_Value(OP_CONTROL(0, frequency_multiplier),
-                                         OP_CONTROL(0, detune) = (7 - ScaleControlValue(value, 1, 7)));
+                return pack_MUL_DT_Value(OP_CONTROL(0, frequency_multiplier),
+                                         OP_CONTROL(0, detune) = (7 - scaleControlValue(value, 1, 7)));
             case 75:
-                return Pack_MUL_DT_Value(OP_CONTROL(1, frequency_multiplier),
-                                         OP_CONTROL(1, detune) = (7 - ScaleControlValue(value, 1, 7)));
+                return pack_MUL_DT_Value(OP_CONTROL(1, frequency_multiplier),
+                                         OP_CONTROL(1, detune) = (7 - scaleControlValue(value, 1, 7)));
             case 76:
-                return Pack_MUL_DT_Value(OP_CONTROL(2, frequency_multiplier),
-                                         OP_CONTROL(2, detune) = (7 - ScaleControlValue(value, 1, 7)));
+                return pack_MUL_DT_Value(OP_CONTROL(2, frequency_multiplier),
+                                         OP_CONTROL(2, detune) = (7 - scaleControlValue(value, 1, 7)));
             case 77:
-                return Pack_MUL_DT_Value(OP_CONTROL(3, frequency_multiplier),
-                                         OP_CONTROL(3, detune) = (7 - ScaleControlValue(value, 1, 7)));
+                return pack_MUL_DT_Value(OP_CONTROL(3, frequency_multiplier),
+                                         OP_CONTROL(3, detune) = (7 - scaleControlValue(value, 1, 7)));
             case 78:
-                return Pack_ALGO_FEED_Value(CHANNEL_CONTROL(algorithm),
+                return pack_ALGO_FEED_Value(CHANNEL_CONTROL(algorithm),
                                             CHANNEL_CONTROL(op1_feedback) = value >> 4);
             case 85:
-                return Pack_AR_RS_Value(OP_CONTROL(0, attack_rate) = INVERT(value) >> 2,
+                return pack_AR_RS_Value(OP_CONTROL(0, attack_rate) = INVERT(value) >> 2,
                                         OP_CONTROL(0, rate_scaling));
             case 86:
                 return OP_CONTROL(0, decay1_rate) = INVERT(value) >> 2;
             case 87:
-                return Pack_RR_SL_Value(OP_CONTROL(0, release_rate),
+                return pack_RR_SL_Value(OP_CONTROL(0, release_rate),
                                         OP_CONTROL(0, sustain_level) = INVERT(value) >> 3);
             case 88:
                 return OP_CONTROL(0, decay2_rate) = INVERT(value) >> 2;
             case 89:
-                return Pack_RR_SL_Value(OP_CONTROL(0, release_rate) = INVERT(value) >> 3,
+                return pack_RR_SL_Value(OP_CONTROL(0, release_rate) = INVERT(value) >> 3,
                                         OP_CONTROL(0, sustain_level));
             case 90:
-                return Pack_AR_RS_Value(OP_CONTROL(0, attack_rate),
+                return pack_AR_RS_Value(OP_CONTROL(0, attack_rate),
                                         OP_CONTROL(0, rate_scaling) = value >> 5);
             case 102:
-                return Pack_AR_RS_Value(OP_CONTROL(1, attack_rate) = INVERT(value) >> 2,
+                return pack_AR_RS_Value(OP_CONTROL(1, attack_rate) = INVERT(value) >> 2,
                                         OP_CONTROL(1, rate_scaling));
             case 103:
                 return OP_CONTROL(1, decay1_rate) = INVERT(value) >> 2;
             case 104:
-                return Pack_RR_SL_Value(OP_CONTROL(1, release_rate),
+                return pack_RR_SL_Value(OP_CONTROL(1, release_rate),
                                         OP_CONTROL(1, sustain_level) = INVERT(value) >> 3);
             case 105:
                 return OP_CONTROL(1, decay2_rate) = INVERT(value) >> 2;
             case 106:
-                return Pack_RR_SL_Value(OP_CONTROL(1, release_rate) = INVERT(value) >> 3,
+                return pack_RR_SL_Value(OP_CONTROL(1, release_rate) = INVERT(value) >> 3,
                                         OP_CONTROL(1, sustain_level));
             case 107:
-                return Pack_AR_RS_Value(OP_CONTROL(1, attack_rate),
+                return pack_AR_RS_Value(OP_CONTROL(1, attack_rate),
                                         OP_CONTROL(1, rate_scaling) = value >> 5);
             case 108:
-                return Pack_AR_RS_Value(OP_CONTROL(2, attack_rate) = INVERT(value) >> 2,
+                return pack_AR_RS_Value(OP_CONTROL(2, attack_rate) = INVERT(value) >> 2,
                                         OP_CONTROL(2, rate_scaling));
             case 109:
                 return OP_CONTROL(2, decay1_rate) = INVERT(value) >> 2;
             case 110:
-                return Pack_RR_SL_Value(OP_CONTROL(2, release_rate),
+                return pack_RR_SL_Value(OP_CONTROL(2, release_rate),
                                         OP_CONTROL(2, sustain_level) = INVERT(value) >> 3);
             case 111:
                 return OP_CONTROL(2, decay2_rate) = INVERT(value) >> 2;
             case 112:
-                return Pack_RR_SL_Value(OP_CONTROL(2, release_rate) = INVERT(value) >> 3,
+                return pack_RR_SL_Value(OP_CONTROL(2, release_rate) = INVERT(value) >> 3,
                                         OP_CONTROL(2, sustain_level));
             case 113:
-                return Pack_AR_RS_Value(OP_CONTROL(2, attack_rate),
+                return pack_AR_RS_Value(OP_CONTROL(2, attack_rate),
                                         OP_CONTROL(2, rate_scaling) = value >> 5);
             case 114:
-                return Pack_AR_RS_Value(OP_CONTROL(3, attack_rate) = INVERT(value) >> 2,
+                return pack_AR_RS_Value(OP_CONTROL(3, attack_rate) = INVERT(value) >> 2,
                                         OP_CONTROL(3, rate_scaling));
             case 115:
                 return OP_CONTROL(3, decay1_rate) = INVERT(value) >> 2;
             case 116:
-                return Pack_RR_SL_Value(OP_CONTROL(3, release_rate),
+                return pack_RR_SL_Value(OP_CONTROL(3, release_rate),
                                         OP_CONTROL(3, sustain_level) = INVERT(value) >> 3);
             case 117:
                 return OP_CONTROL(3, decay2_rate) = INVERT(value) >> 2;
             case 118:
-                return Pack_RR_SL_Value(OP_CONTROL(3, release_rate) = INVERT(value) >> 3,
+                return pack_RR_SL_Value(OP_CONTROL(3, release_rate) = INVERT(value) >> 3,
                                         OP_CONTROL(3, sustain_level));
             case 119:
-                return Pack_AR_RS_Value(OP_CONTROL(3, attack_rate),
+                return pack_AR_RS_Value(OP_CONTROL(3, attack_rate),
                                         OP_CONTROL(3, rate_scaling) = value >> 5);
         };
     }
@@ -584,34 +546,34 @@ namespace YM2612 {
             //m_timed_controls[i].am_started = false;
         //}
 
-        // TODO: Move channel/operator init into Voice::On
+        // TODO: Move channel/operator init into Voice::on
 
-        //SetChannelRegister(0xb0, 0x03);     // ALGO/FEEDBACK
-        SetChannelRegister(0xb0, 0x07);     // ALGO/FEEDBACK  - useful for testing as all ops are carriers
+        //setChannelRegister(0xb0, 0x03);     // ALGO/FEEDBACK
+        setChannelRegister(0xb0, 0x07);     // ALGO/FEEDBACK  - useful for testing as all ops are carriers
 
         for (int op = 0; op < 4; ++ op) {
-            //SetOperatorRegister(op, 0x30, 0x01);    // MUL/DT
-            SetOperatorRegister(op, 0x40, 0x20);    // TL
-            //SetOperatorRegister(op, 0x50, 0x0b);    // AR/RS
-            //SetOperatorRegister(op, 0x60, 0x00);    // DR/AMON
-            //SetOperatorRegister(op, 0x70, 0x00);    // SR
-            //SetOperatorRegister(op, 0x80, 0x05);    // RR/SL
-            SetOperatorRegister(op, 0x90, 0x00);    // SSG-EG
+            //setOperatorRegister(op, 0x30, 0x01);    // MUL/DT
+            setOperatorRegister(op, 0x40, 0x20);    // TL
+            //setOperatorRegister(op, 0x50, 0x0b);    // AR/RS
+            //setOperatorRegister(op, 0x60, 0x00);    // DR/AMON
+            //setOperatorRegister(op, 0x70, 0x00);    // SR
+            //setOperatorRegister(op, 0x80, 0x05);    // RR/SL
+            setOperatorRegister(op, 0x90, 0x00);    // SSG-EG
         }
 
         // TODO: Set output/ams/pms properly
-        //SetChannelRegister(0xb4, 0xf0);
+        //setChannelRegister(0xb4, 0xf0);
     }
 
-    void Voice::SetPitch(uint8_t note, int16_t bend_amount)
+    void Voice::setPitch(uint8_t note, int16_t bend_amount)
     {
         uint16_t freq;
         freq = noteToYM2612Frequency((float)note + ((float)bend_amount / 4096));
-        SetChannelRegister(0xa4, freq >> 8);
-        SetChannelRegister(0xa0, freq & 0xff);
+        setChannelRegister(0xa4, freq >> 8);
+        setChannelRegister(0xa0, freq & 0xff);
     }
 
-    void Voice::On(uint8_t velocity)
+    void Voice::on(uint8_t velocity)
     {
         // Each operator may start at a different time so the note doesn't
         // really start here
@@ -620,11 +582,11 @@ namespace YM2612 {
         // each operator
         // TODO: SSG-EG
 
-        SetChannelRegister(ALGO_FEED_ChannelRegister, Pack_ALGO_FEED_Value(
+        setChannelRegister(ALGO_FEED_ChannelRegister, pack_ALGO_FEED_Value(
             m_controls->algorithm,
             m_controls->op1_feedback));
 
-        SetChannelRegister(L_R_AMS_PMS_ChannelRegister, Pack_L_R_AMS_PMS_Value(
+        setChannelRegister(L_R_AMS_PMS_ChannelRegister, pack_L_R_AMS_PMS_Value(
             m_controls->left_output_enable,
             m_controls->right_output_enable,
             m_controls->am_sensitivity,
@@ -634,38 +596,38 @@ namespace YM2612 {
             m_timed_controls[op].started = false;
             m_timed_controls[op].am_started = false;
 
-            SetOperatorRegister(op, MUL_DT_OperatorRegister, Pack_MUL_DT_Value(
+            setOperatorRegister(op, MUL_DT_OperatorRegister, pack_MUL_DT_Value(
                 m_controls->operators[op].frequency_multiplier,
                 m_controls->operators[op].detune));
 
         #if 0
             // TODO: Total level needs to consider velo-to-level, velocity
-            SetOperatorRegister(op, TL_OperatorRegister, 0);
+            setOperatorRegister(op, TL_OperatorRegister, 0);
         #endif
 
-            SetOperatorRegister(op, AR_RS_OperatorRegister, Pack_AR_RS_Value(
+            setOperatorRegister(op, AR_RS_OperatorRegister, pack_AR_RS_Value(
                 m_controls->operators[op].attack_rate,
                 m_controls->operators[op].rate_scaling));
 
             // AMON will be enabled in Update() when AM start delay elapses
-            SetOperatorRegister(op, DR_AMON_OperatorRegister, Pack_DR_AMON_Value(
+            setOperatorRegister(op, DR_AMON_OperatorRegister, pack_DR_AMON_Value(
                 m_controls->operators[op].decay1_rate,
                 false));
 
-            SetOperatorRegister(op, SR_OperatorRegister,
+            setOperatorRegister(op, SR_OperatorRegister,
                 m_controls->operators[op].decay2_rate);
 
-            SetOperatorRegister(op, RR_SL_OperatorRegister, Pack_RR_SL_Value(
+            setOperatorRegister(op, RR_SL_OperatorRegister, pack_RR_SL_Value(
                 m_controls->operators[op].release_rate,
                 m_controls->operators[op].sustain_level));
         }
     }
 
-    uint16_t Voice::Off()
+    uint16_t Voice::off()
     {
         uint8_t ch = m_fm_channel;
         if (ch> 2) ++ ch;
-        SetGlobalRegister(Key_GlobalRegister, 0x00 | ch);
+        setGlobalRegister(Key_GlobalRegister, 0x00 | ch);
 
         // This prevents further key-ons during Update()
         for (int i = 0; i < 4; ++ i) {
@@ -677,50 +639,50 @@ namespace YM2612 {
 
     // Synth implementation will have packed a register value already so we
     // just need to figure out which register to update
-    void Voice::SetControl(uint8_t control, int16_t value)
+    void Voice::setControl(uint8_t control, int16_t value)
     {
         // Start times are set by Synth already and will be handled by Update()
         switch (control) {
             case 9:
             case 78:
-                SetChannelRegister(ALGO_FEED_ChannelRegister, value);
+                setChannelRegister(ALGO_FEED_ChannelRegister, value);
                 break;
 
             case 10:
             case 14:
             case 15:
-                SetChannelRegister(L_R_AMS_PMS_ChannelRegister, value);
+                setChannelRegister(L_R_AMS_PMS_ChannelRegister, value);
                 break;
 
             // TODO: Level, velocity to level
 
             case 70:
             case 74:
-                SetOperatorRegister(0, MUL_DT_OperatorRegister, value);
+                setOperatorRegister(0, MUL_DT_OperatorRegister, value);
                 break;
 
             case 71:
             case 75:
-                SetOperatorRegister(1, MUL_DT_OperatorRegister, value);
+                setOperatorRegister(1, MUL_DT_OperatorRegister, value);
                 break;
 
             case 72:
             case 76:
-                SetOperatorRegister(2, MUL_DT_OperatorRegister, value);
+                setOperatorRegister(2, MUL_DT_OperatorRegister, value);
                 break;
 
             case 73:
             case 77:
-                SetOperatorRegister(3, MUL_DT_OperatorRegister, value);
+                setOperatorRegister(3, MUL_DT_OperatorRegister, value);
                 break;
 
             case 85:
             case 90:
-                SetOperatorRegister(0, AR_RS_OperatorRegister, value);
+                setOperatorRegister(0, AR_RS_OperatorRegister, value);
                 break;
 
             case 86:
-                SetOperatorRegister(0, DR_AMON_OperatorRegister, Pack_DR_AMON_Value(
+                setOperatorRegister(0, DR_AMON_OperatorRegister, pack_DR_AMON_Value(
                     value,
                     m_timed_controls[0].am_started
                 ));
@@ -728,20 +690,20 @@ namespace YM2612 {
 
             case 87:
             case 89:
-                SetOperatorRegister(0, RR_SL_OperatorRegister, value);
+                setOperatorRegister(0, RR_SL_OperatorRegister, value);
                 break;
 
             case 88:
-                SetOperatorRegister(0, SR_OperatorRegister, value);
+                setOperatorRegister(0, SR_OperatorRegister, value);
                 break;
 
             case 102:
             case 107:
-                SetOperatorRegister(1, AR_RS_OperatorRegister, value);
+                setOperatorRegister(1, AR_RS_OperatorRegister, value);
                 break;
 
             case 103:
-                SetOperatorRegister(1, DR_AMON_OperatorRegister, Pack_DR_AMON_Value(
+                setOperatorRegister(1, DR_AMON_OperatorRegister, pack_DR_AMON_Value(
                     value,
                     m_timed_controls[1].am_started
                 ));
@@ -749,20 +711,20 @@ namespace YM2612 {
 
             case 104:
             case 106:
-                SetOperatorRegister(1, RR_SL_OperatorRegister, value);
+                setOperatorRegister(1, RR_SL_OperatorRegister, value);
                 break;
 
             case 105:
-                SetOperatorRegister(1, SR_OperatorRegister, value);
+                setOperatorRegister(1, SR_OperatorRegister, value);
                 break;
 
             case 108:
             case 113:
-                SetOperatorRegister(2, AR_RS_OperatorRegister, value);
+                setOperatorRegister(2, AR_RS_OperatorRegister, value);
                 break;
 
             case 109:
-                SetOperatorRegister(2, DR_AMON_OperatorRegister, Pack_DR_AMON_Value(
+                setOperatorRegister(2, DR_AMON_OperatorRegister, pack_DR_AMON_Value(
                     value,
                     m_timed_controls[2].am_started
                 ));
@@ -770,20 +732,20 @@ namespace YM2612 {
 
             case 110:
             case 112:
-                SetOperatorRegister(2, RR_SL_OperatorRegister, value);
+                setOperatorRegister(2, RR_SL_OperatorRegister, value);
                 break;
 
             case 111:
-                SetOperatorRegister(2, SR_OperatorRegister, value);
+                setOperatorRegister(2, SR_OperatorRegister, value);
                 break;
 
             case 114:
             case 119:
-                SetOperatorRegister(3, AR_RS_OperatorRegister, value);
+                setOperatorRegister(3, AR_RS_OperatorRegister, value);
                 break;
 
             case 115:
-                SetOperatorRegister(3, DR_AMON_OperatorRegister, Pack_DR_AMON_Value(
+                setOperatorRegister(3, DR_AMON_OperatorRegister, pack_DR_AMON_Value(
                     value,
                     m_timed_controls[3].am_started
                 ));
@@ -791,16 +753,16 @@ namespace YM2612 {
 
             case 116:
             case 118:
-                SetOperatorRegister(3, RR_SL_OperatorRegister, value);
+                setOperatorRegister(3, RR_SL_OperatorRegister, value);
                 break;
 
             case 117:
-                SetOperatorRegister(3, SR_OperatorRegister, value);
+                setOperatorRegister(3, SR_OperatorRegister, value);
                 break;
         }
     }
 
-    void Voice::Update(uint32_t elapsed)
+    void Voice::update(uint32_t elapsed)
     {
         // Operator key and AM starts
         uint8_t key_reg_value = 0x00;
@@ -818,7 +780,7 @@ namespace YM2612 {
             if (elapsed >= (uint16_t)m_controls->operators[op].am_start * 100) {
                 if (!m_timed_controls[op].am_started) {
                     m_timed_controls[op].am_started = true;
-                    SetOperatorRegister(op, DR_AMON_OperatorRegister, Pack_DR_AMON_Value(
+                    setOperatorRegister(op, DR_AMON_OperatorRegister, pack_DR_AMON_Value(
                         m_controls->operators[op].decay1_rate,
                         m_timed_controls[op].am_started));
                 }
@@ -828,99 +790,62 @@ namespace YM2612 {
         if (update_key_reg) {
             uint8_t ch = m_fm_channel;
             if (ch > 2) ++ ch;
-            SetGlobalRegister(Key_GlobalRegister, key_reg_value | ch);
+            setGlobalRegister(Key_GlobalRegister, key_reg_value | ch);
         }
     }
 };
 
-
-
-SoftwareSerial midiInSerialPort(A1, 255);
-MIDI_CREATE_INSTANCE(SoftwareSerial, midiInSerialPort, MIDI);
+MIDI_CREATE_DEFAULT_INSTANCE()
 
 YM2612::Synth g_synth;
 
+void setup()
+{
+    YM2612::init();
 
-void setup() {
-    // D0-D7 as inputs initially
-    DDRD = 0;
-
-    // Mux output inhibit
-    pinMode(8, OUTPUT);
-
-    // Pin 9 is used for YM2612 clock
-    // (configured in YM2612::Init)
-
-    // Shared 595 RCLK
-    pinMode(10, OUTPUT);
-
-    // SPI MOSI: DAC SDI and first 595 SER
-    pinMode(11, OUTPUT);
-
-    // SPI MISO: unused
-    pinMode(12, INPUT);
-
-    // SPI CLK
-    pinMode(13, OUTPUT);
-
-    // Mux inputs
-    pinMode(A2, INPUT);
-    pinMode(A3, INPUT);
-    pinMode(A4, INPUT);
-    pinMode(A5, INPUT);
-
-    // Inhibit mux output (NOT)
-    digitalWrite(8, LOW);
-
-    YM2612::Init();
-
-    MIDI.begin();
+    MIDI.begin(MIDI_CHANNEL_OMNI);
     MIDI.turnThruOff();
 }
 
+int8_t test_note = 40;
 
-
-uint8_t CalcPotVal(uint16_t raw_value, uint8_t steps)
+void loop()
 {
-    uint16_t value = 0;
+    /*
+    g_synth.noteOn(0, test_note, 0x7f);
+    delay(500);
+    g_synth.noteOff(0, test_note ++);
+    delay(500);
 
-    // Some pots don't seem to go fully to zero
-    if (raw_value >= 20) raw_value -= 20;
+    if (test_note < 0) {
+        test_note = 0;
+    }
+    */
 
-    if (steps <= 32) {
-        // Make step changes line up with the tick markers
-        if (raw_value < 130) {
-            // Close to (or in) dead zone
-            value = 0;
-        } else if (raw_value < 210) {
-            // Dead zone at low end means less range here
-            value = (raw_value - 130) / 5;
-        } else if (raw_value < 4900) {
-            // Main zone
-            value = 13 + ((raw_value - 210) / 47);
-        } else if (raw_value < 4970) {
-            // Dead zone at high end means less range here
-            value = 112 + ((raw_value - 4900) / 8);
-            //value = 0;
-        } else {
-            // Close to (or in) dead zone
-            value = 127;
-        }
+    if (MIDI.read()) {
+        switch(MIDI.getType()) {
+            case midi::NoteOn:
+                g_synth.noteOn(0, MIDI.getData1(), MIDI.getData2());
+                break;
 
-        value /= (128 / steps);
+            case midi::NoteOff:
+                g_synth.noteOff(0, MIDI.getData1());
+                break;
+                
+            case midi::ControlChange:
+                g_synth.controlChange(0, MIDI.getData1(), MIDI.getData2());
+                break;
 
-        if (value >= steps) value = steps - 1;
-    } else {
-        value = raw_value / 39;
-
-        if (value > 127) {
-            value = 127;
+            case midi::PitchBend:
+                g_synth.pitchBend(0, (MIDI.getData2() << 7) | MIDI.getData1());
+                break;
         }
     }
 
-    return value;
+    g_synth.process();
 }
 
+/*
 enum ControllerNumber {
     MIDI_CC_LFO_RATE = 3,
     MIDI_CC_ALGORITHM = 9,
@@ -1053,7 +978,6 @@ const uint32_t g_controller_map[CONTROLLER_COUNT] PROGMEM = {
     PACK_CONTROLLER_MAPPING(A5, 15, MIDI_CC_OP4_FREQUENCY_MULTIPLIER, 16)
 };
 
-
 uint16_t g_control_readings[48][5];
 int g_control_reading_index = 0;
 uint16_t g_control_last_values[48];
@@ -1107,7 +1031,7 @@ void loop()
                         break;
                 }
 
-                g_synth.ControlChange(0, UNPACK_CONTROLLER_MAPPING_CONTROLLER(mapping), value * (128/steps));
+                g_synth.controlChange(0, UNPACK_CONTROLLER_MAPPING_CONTROLLER(mapping), value * (128/steps));
                 g_control_last_values[i] = value;
             }
         }
@@ -1116,23 +1040,24 @@ void loop()
         if (MIDI.read()) {
             switch(MIDI.getType()) {
                 case midi::NoteOn:
-                    g_synth.NoteOn(0, MIDI.getData1(), MIDI.getData2());
+                    g_synth.noteOn(0, MIDI.getData1(), MIDI.getData2());
                     break;
 
                 case midi::NoteOff:
-                    g_synth.NoteOff(0, MIDI.getData1());
+                    g_synth.noteOff(0, MIDI.getData1());
                     break;
                     
                 case midi::ControlChange:
-                    g_synth.ControlChange(0, MIDI.getData1(), MIDI.getData2());
+                    g_synth.controlChange(0, MIDI.getData1(), MIDI.getData2());
                     break;
 
                 case midi::PitchBend:
-                    g_synth.PitchBend(0, (MIDI.getData2() << 7) | MIDI.getData1());
+                    g_synth.pitchBend(0, (MIDI.getData2() << 7) | MIDI.getData1());
                     break;
             }
         }
 
-        g_synth.Process();
+        g_synth.process();
     }
 }
+*/

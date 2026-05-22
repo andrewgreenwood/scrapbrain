@@ -20,7 +20,7 @@ Synth::Synth(uint8_t max_polyphony)
     }
 }
 
-void Synth::Process()
+void Synth::process()
 {
     // Max time (in ms) for an unsigned 32-bit integer is around 49 days
     // The 'on_duration' for a note will also overflow around this time
@@ -37,7 +37,7 @@ void Synth::Process()
             note_mapping.on_duration += time_delta;
 
         if (note_mapping.note) {
-            note_mapping.note->Update(note_mapping.on_duration);
+            note_mapping.note->update(note_mapping.on_duration);
 
             if ((!note_mapping.on) && (!note_mapping.sustain)) {
                 // Free up any notes after their release time
@@ -48,7 +48,7 @@ void Synth::Process()
                         note_mapping.release_time_remaining -= time_delta;
                     }
                 } else {
-                    TerminateNote(note_mapping);
+                    terminateNote(note_mapping);
                 }
             }
         }
@@ -57,14 +57,14 @@ void Synth::Process()
     m_last_process_time = now;
 }
 
-void Synth::NoteOn(uint8_t channel, uint8_t note, uint8_t velocity)
+void Synth::noteOn(uint8_t channel, uint8_t note, uint8_t velocity)
 {
-    if ((!IsValidChannel(channel)) || (!IsValidNote(note)))
+    if ((!isValidChannel(channel)) || (!isValidNote(note)))
         return;
 
     // Restart the note if already playing
-    if (IsNoteOn(channel, note)) {
-        NoteOff(channel, note);
+    if (isNoteOn(channel, note)) {
+        noteOff(channel, note);
     }
 
     NoteMapping *note_mapping = NULL;
@@ -122,7 +122,7 @@ void Synth::NoteOn(uint8_t channel, uint8_t note, uint8_t velocity)
                 note_mapping = &m_notes[i];
                 longest_note_duration = m_notes[i].on_duration;
             }
-        }        
+        }
     }
 
     // Must have a note mapping by now, so if we don't have one that's an error
@@ -130,9 +130,9 @@ void Synth::NoteOn(uint8_t channel, uint8_t note, uint8_t velocity)
         return;
 
     if (note_mapping->note)
-        TerminateNote(*note_mapping);
+        terminateNote(*note_mapping);
 
-    SynthNote *note_object = AllocateNote(channel);
+    SynthNote *note_object = allocateNote(channel);
     if (!note)
         return;
 
@@ -142,19 +142,19 @@ void Synth::NoteOn(uint8_t channel, uint8_t note, uint8_t velocity)
     note_mapping->on = true;
     note_mapping->on_duration = 0;
 
-    note_object->SetPitch(note, m_channels[channel].pitch_bend);
+    note_object->setPitch(note, m_channels[channel].pitch_bend);
 
-    note_object->On(velocity);
-    note_object->Update(0);
+    note_object->on(velocity);
+    note_object->update(0);
 }
 
-void Synth::NoteOff(uint8_t channel, uint8_t note)
+void Synth::noteOff(uint8_t channel, uint8_t note)
 {
-    if ((!IsValidChannel(channel)) || (!IsValidNote(note)) || (!IsNoteOn(channel, note)))
+    if ((!isValidChannel(channel)) || (!isValidNote(note)) || (!isNoteOn(channel, note)))
         return;
 
 
-    NoteMapping *note_mapping = GetNoteMapping(channel, note);
+    NoteMapping *note_mapping = getNoteMapping(channel, note);
     if (!note_mapping)
         return;
 
@@ -162,68 +162,68 @@ void Synth::NoteOff(uint8_t channel, uint8_t note)
     note_mapping->sustain = m_channels[channel].sustaining;
 
     if (!note_mapping->sustain) {
-        note_mapping->release_time_remaining = note_mapping->note->Off();
+        note_mapping->release_time_remaining = note_mapping->note->off();
     }
 }
 
-void Synth::ControlChange(uint8_t channel, uint8_t control, uint8_t value)
+void Synth::controlChange(uint8_t channel, uint8_t control, uint8_t value)
 {
-    if (!IsValidChannel(channel))
+    if (!isValidChannel(channel))
         return;
 
-    int16_t adjusted_value = SetControl(channel, control, value);
+    int16_t adjusted_value = setControl(channel, control, value);
 
     switch (control) {
         case 64:    // Sustain pedal
-            SetSustain(channel, value >= 64);
+            setSustain(channel, value >= 64);
             break;
 
         case 120:   // All sound off
-            StopAllNotes(channel, true);
+            stopAllNotes(channel, true);
             break;
 
         case 122:
-            StopAllNotes(channel, false);
+            stopAllNotes(channel, false);
             break;
     }
 
     for (int i = 0; i < m_max_polyphony; ++ i) {
         if ((m_notes[i].note) && (m_notes[i].channel == channel)) {
-            m_notes[i].note->SetControl(control, adjusted_value);
+            m_notes[i].note->setControl(control, adjusted_value);
         }
     }
 }
 
-void Synth::PitchBend(uint8_t channel, uint16_t amount)
+void Synth::pitchBend(uint8_t channel, uint16_t amount)
 {
-    if (!IsValidChannel(channel))
+    if (!isValidChannel(channel))
         return;
 
     m_channels[channel].pitch_bend = amount;
 
     for (int i = 0; i < m_max_polyphony; ++ i) {
         if ((m_notes[i].note) && (m_notes[i].channel == channel)) {
-            m_notes[i].note->SetPitch(m_notes[i].note_number, m_channels[channel].pitch_bend);
+            m_notes[i].note->setPitch(m_notes[i].note_number, m_channels[channel].pitch_bend);
         }
     }
 }
 
-void Synth::Sustain(uint8_t channel, bool state)
+void Synth::sustain(uint8_t channel, bool state)
 {
-    ControlChange(channel, 64, state ? 127 : 0);
+    controlChange(channel, 64, state ? 127 : 0);
 }
 
-void Synth::Silence(uint8_t channel, bool immediate)
+void Synth::silence(uint8_t channel, bool immediate)
 {
-    ControlChange(channel, immediate ? 120 : 122, 0);
+    controlChange(channel, immediate ? 120 : 122, 0);
 }
 
-int16_t Synth::ScaleControlValue(uint8_t value, int16_t min, int16_t max)
+int16_t Synth::scaleControlValue(uint8_t value, int16_t min, int16_t max)
 {
     return min + (((uint8_t)value * ((max - min) + 1)) / 128);
 }
 
-void Synth::SetSustain(uint8_t channel, bool state)
+void Synth::setSustain(uint8_t channel, bool state)
 {
     bool stop_notes = ((m_channels[channel].sustaining) && (!state));
 
@@ -233,14 +233,14 @@ void Synth::SetSustain(uint8_t channel, bool state)
         for (int i = 0; i < m_max_polyphony; ++ i) {
             NoteMapping &note_mapping = m_notes[i];
             if ((note_mapping.note) && (note_mapping.channel == channel) && (note_mapping.sustain)) {
-                note_mapping.release_time_remaining = note_mapping.note->Off();
+                note_mapping.release_time_remaining = note_mapping.note->off();
                 note_mapping.sustain = false;
             }
         }
     }
 }
 
-void Synth::StopAllNotes(uint8_t channel, bool immediate)
+void Synth::stopAllNotes(uint8_t channel, bool immediate)
 {
     for (int i = 0; i < m_max_polyphony; ++ i) {
         NoteMapping &note_mapping = m_notes[i];
@@ -250,12 +250,11 @@ void Synth::StopAllNotes(uint8_t channel, bool immediate)
             if (!immediate) {
                 note_mapping.sustain = m_channels[channel].sustaining;
                 if (!note_mapping.sustain) {
-                    note_mapping.release_time_remaining = note_mapping.note->Off();
+                    note_mapping.release_time_remaining = note_mapping.note->off();
                 }
             } else {
-                TerminateNote(note_mapping);
+                terminateNote(note_mapping);
             }
         }
     }
 }
-
