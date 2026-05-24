@@ -1,12 +1,15 @@
 /*
     SCRAP BRAIN - YM2612 Hardware Synth - Panel
     Author: Andrew Greenwood
+
+    All output goes to both L/R channels
 */
 
 #include <MIDI.h>
+#include "common.h"
 #include "synth.h"
 
-// TODO: IC pin?
+// TODO: IC pin? (currently just pulled HIGH)
 #define YM2612_CLOCK_PIN    3
 #define YM2612_CS_PIN       A1
 #define YM2612_WR_PIN       A2
@@ -46,13 +49,12 @@ namespace YM2612 {
     struct Controls {
         Controls()
         : algorithm(0), op1_feedback(0), left_output_enable(1), right_output_enable(1),
-          am_sensitivity(0), pm_sensitivity(0)
+          am_sensitivity(0), pm_sensitivity(0), pm_start(0)
         {
             for (int op = 0; op < 4; ++ op) {
                 operators[op].start = 0;
                 operators[op].frequency_multiplier = 1;
                 operators[op].detune = 0;
-                operators[op].total_level = 0;
                 operators[op].attack_rate = 31;
                 operators[op].rate_scaling = 0;
                 operators[op].decay1_rate = 0;
@@ -63,6 +65,7 @@ namespace YM2612 {
                 operators[op].ssgeg_on = false;
                 operators[op].ssgeg = 0;
                 operators[op].velocity_to_level = 127;
+                operators[op].level = 127;
             }
         };
 
@@ -72,12 +75,12 @@ namespace YM2612 {
         uint8_t right_output_enable     : 1;
         uint8_t am_sensitivity          : 2;
         uint8_t pm_sensitivity          : 3;
+        uint8_t pm_start                : 7;
 
         struct {
             uint8_t start                   : 7;
             uint8_t frequency_multiplier    : 4;
             uint8_t detune                  : 3;
-            uint8_t total_level             : 7;
             uint8_t attack_rate             : 5;
             uint8_t rate_scaling            : 2;
             uint8_t decay1_rate             : 5;
@@ -88,6 +91,7 @@ namespace YM2612 {
             uint8_t ssgeg_on                : 1;
             uint8_t ssgeg                   : 3;
             uint8_t velocity_to_level       : 7;
+            uint8_t level                   : 7;
         } operators[4];
     };
 
@@ -112,7 +116,7 @@ namespace YM2612 {
     { return (algo & 0x7) | ((feed & 0x7) << 3); }
 
     static uint8_t pack_L_R_AMS_PMS_Value(uint8_t l, uint8_t r, uint8_t ams, uint8_t pms)
-    { return (((l & 0x1) << 7) | ((r & 0x1) << 6) | ((ams & 0x3) << 4) | (pms & 0x7)); }
+    { return (((l & 0x1) << 7) | ((r & 0x1) << 6) | ((ams & 0x3) << 4) | ((pms) & 0x7)); }
 
     enum OperatorRegister {
         MUL_DT_OperatorRegister = 0x30,
@@ -245,7 +249,6 @@ namespace YM2612 {
 
         // LFO off
         setGlobalRegister(LFO_GlobalRegister, 0x00);
-        //setGlobalRegister(LFO_GlobalRegister, 0x08);        // TESTING ONLY
 
         // Note off (all channels)
         setGlobalRegister(Key_GlobalRegister, 0x00);
@@ -263,7 +266,7 @@ namespace YM2612 {
     class Voice: public SynthNote {
         public:
             Voice()
-            : m_controls(NULL), m_fm_channel(-1)
+            : m_controls(NULL), m_fm_channel(-1), m_velocity(0), m_pm_started(false)
             {
             }
 
@@ -306,8 +309,21 @@ namespace YM2612 {
                 write(base_address + 2, value);
             }
 
+            // Scales a level based on velocity and velocity sensitivity
+            uint8_t getScaledLevel(uint8_t velocity, uint8_t velocity_sensitivity, uint8_t level)
+            {
+                // TODO: Re-enable this, for now just return level for testing purposes
+                return level;
+                uint16_t curved_velocity = ((uint16_t)velocity * velocity) / 127;
+                uint16_t velocity_range = ((uint16_t)velocity_sensitivity * level) / 127;
+                uint16_t base_level = level - velocity_range;
+                return base_level + (curved_velocity * velocity_range) / 127;
+            }
+
             Controls *m_controls;
             int m_fm_channel;
+            uint8_t m_velocity;
+            bool m_pm_started;
             struct {
                 uint8_t started : 1;
                 uint8_t am_started : 1;
@@ -329,7 +345,7 @@ namespace YM2612 {
                 for (int ch = 0; ch < 16; ++ ch) {
                     for (int op = 0; op < 4; ++ op) {
                         m_controls[ch].operators[op].start = 0;
-                        //m_controls[ch].operators[op].am_start = 10 * (4 - op);      // test
+                        m_controls[ch].operators[op].am_start = 0;  //10 * (4 - op);      // test
                     }
                 }
             }
@@ -388,181 +404,150 @@ namespace YM2612 {
             m_controls[channel].operators[op].prop
 
         switch (control) {
-            case 3:
+            case LFORate_MidiController:
                 setGlobalRegister(LFO_GlobalRegister, scaleControlValue(value, 7, 15));
                 break;
 
-            case 9:
+            case Algorithm_MidiController:
                 return pack_ALGO_FEED_Value(CHANNEL_CONTROL(algorithm) = value >> 4,
                                             CHANNEL_CONTROL(op1_feedback));
-            case 10:
-                return pack_L_R_AMS_PMS_Value(CHANNEL_CONTROL(left_output_enable) = value <= 84,
-                                              CHANNEL_CONTROL(right_output_enable) = value >= 42,
-                                              CHANNEL_CONTROL(am_sensitivity),
-                                              CHANNEL_CONTROL(pm_sensitivity));
-            case 14:
-                return pack_L_R_AMS_PMS_Value(CHANNEL_CONTROL(left_output_enable),
-                                              CHANNEL_CONTROL(right_output_enable),
-                                              CHANNEL_CONTROL(am_sensitivity),
-                                              CHANNEL_CONTROL(pm_sensitivity) >> 4);
-            case 15:
-                return pack_L_R_AMS_PMS_Value(CHANNEL_CONTROL(left_output_enable),
-                                              CHANNEL_CONTROL(right_output_enable),
-                                              CHANNEL_CONTROL(am_sensitivity) >> 5,
-                                              CHANNEL_CONTROL(pm_sensitivity));
-            case 16:
+            case AMDepth_MidiController:
+                return CHANNEL_CONTROL(am_sensitivity) = value >> 5;
+            case PMDepth_MidiController:
+                return CHANNEL_CONTROL(pm_sensitivity) = value >> 4;
+            case Op1_AMStart_MidiController:
                 return OP_CONTROL(0, am_start) = value;
-            case 17:
+            case Op2_AMStart_MidiController:
                 return OP_CONTROL(1, am_start) = value;
-            case 18:
+            case Op3_AMStart_MidiController:
                 return OP_CONTROL(2, am_start) = value;
-            case 19:
+            case Op4_AMStart_MidiController:
                 return OP_CONTROL(3, am_start) = value;
-            case 20:
-                return OP_CONTROL(0, total_level) = value;
-            case 21:
-                return OP_CONTROL(1, total_level) = value;
-            case 22:
-                return OP_CONTROL(2, total_level) = value;
-            case 23:
-                return OP_CONTROL(3, total_level) = value;
-            case 24:
+            case Op1_Level_MidiController:
+                return OP_CONTROL(0, level) = value;
+            case Op2_Level_MidiController:
+                return OP_CONTROL(1, level) = value;
+            case Op3_Level_MidiController:
+                return OP_CONTROL(2, level) = value;
+            case Op4_Level_MidiController:
+                return OP_CONTROL(3, level) = value;
+            case Op1_Velocity_MidiController:
                 return OP_CONTROL(0, velocity_to_level) = value;
-            case 25:
+            case Op2_Velocity_MidiController:
                 return OP_CONTROL(1, velocity_to_level) = value;
-            case 26:
+            case Op3_Velocity_MidiController:
                 return OP_CONTROL(2, velocity_to_level) = value;
-            case 27:
+            case Op4_Velocity_MidiController:
                 return OP_CONTROL(3, velocity_to_level) = value;
-            case 28:
+            case Op1_Start_MidiController:
                 return OP_CONTROL(0, start) = value;
-            case 29:
+            case Op2_Start_MidiController:
                 return OP_CONTROL(1, start) = value;
-            case 30:
+            case Op3_Start_MidiController:
                 return OP_CONTROL(2, start) = value;
-            case 31:
+            case Op4_Start_MidiController:
                 return OP_CONTROL(3, start) = value;
-            case 70:
+            case Op1_FreqX_MidiController:
                 return pack_MUL_DT_Value(OP_CONTROL(0, frequency_multiplier) = value >> 3,
                                          OP_CONTROL(0, detune));
-            case 71:
+            case Op2_FreqX_MidiController:
                 return pack_MUL_DT_Value(OP_CONTROL(1, frequency_multiplier) = value >> 3,
                                          OP_CONTROL(1, detune));
-            case 72:
+            case Op3_FreqX_MidiController:
                 return pack_MUL_DT_Value(OP_CONTROL(2, frequency_multiplier) = value >> 3,
                                          OP_CONTROL(2, detune));
-            case 73:
+            case Op4_FreqX_MidiController:
                 return pack_MUL_DT_Value(OP_CONTROL(3, frequency_multiplier) = value >> 3,
                                          OP_CONTROL(3, detune));
-            case 74:
+            case Op1_Detune_MidiController:
                 return pack_MUL_DT_Value(OP_CONTROL(0, frequency_multiplier),
                                          OP_CONTROL(0, detune) = (7 - scaleControlValue(value, 1, 7)));
-            case 75:
+            case Op2_Detune_MidiController:
                 return pack_MUL_DT_Value(OP_CONTROL(1, frequency_multiplier),
                                          OP_CONTROL(1, detune) = (7 - scaleControlValue(value, 1, 7)));
-            case 76:
+            case Op3_Detune_MidiController:
                 return pack_MUL_DT_Value(OP_CONTROL(2, frequency_multiplier),
                                          OP_CONTROL(2, detune) = (7 - scaleControlValue(value, 1, 7)));
-            case 77:
+            case Op4_Detune_MidiController:
                 return pack_MUL_DT_Value(OP_CONTROL(3, frequency_multiplier),
                                          OP_CONTROL(3, detune) = (7 - scaleControlValue(value, 1, 7)));
-            case 78:
+            case Op1_Feedback_MidiController:
+                // TODO: This is temporarily forced to zero due to panel not being wired up for it
+                value = 0;                
                 return pack_ALGO_FEED_Value(CHANNEL_CONTROL(algorithm),
                                             CHANNEL_CONTROL(op1_feedback) = value >> 4);
-            case 85:
+            case PMStart_MidiController:
+                return CHANNEL_CONTROL(pm_start) = value;
+            case Op1_Attack_MidiController:
                 return pack_AR_RS_Value(OP_CONTROL(0, attack_rate) = INVERT(value) >> 2,
                                         OP_CONTROL(0, rate_scaling));
-            case 86:
+            case Op1_Decay1_MidiController:
                 return OP_CONTROL(0, decay1_rate) = INVERT(value) >> 2;
-            case 87:
+            case Op1_Sustain_MidiController:
                 return pack_RR_SL_Value(OP_CONTROL(0, release_rate),
                                         OP_CONTROL(0, sustain_level) = INVERT(value) >> 3);
-            case 88:
+            case Op1_Decay2_MidiController:
                 return OP_CONTROL(0, decay2_rate) = INVERT(value) >> 2;
-            case 89:
+            case Op1_Release_MidiController:
                 return pack_RR_SL_Value(OP_CONTROL(0, release_rate) = INVERT(value) >> 3,
                                         OP_CONTROL(0, sustain_level));
-            case 90:
+            case Op1_EnvScale_MidiController:
                 return pack_AR_RS_Value(OP_CONTROL(0, attack_rate),
                                         OP_CONTROL(0, rate_scaling) = value >> 5);
-            case 102:
+            case Op2_Attack_MidiController:
                 return pack_AR_RS_Value(OP_CONTROL(1, attack_rate) = INVERT(value) >> 2,
                                         OP_CONTROL(1, rate_scaling));
-            case 103:
+            case Op2_Decay1_MidiController:
                 return OP_CONTROL(1, decay1_rate) = INVERT(value) >> 2;
-            case 104:
+            case Op2_Sustain_MidiController:
                 return pack_RR_SL_Value(OP_CONTROL(1, release_rate),
                                         OP_CONTROL(1, sustain_level) = INVERT(value) >> 3);
-            case 105:
+            case Op2_Decay2_MidiController:
                 return OP_CONTROL(1, decay2_rate) = INVERT(value) >> 2;
-            case 106:
+            case Op2_Release_MidiController:
                 return pack_RR_SL_Value(OP_CONTROL(1, release_rate) = INVERT(value) >> 3,
                                         OP_CONTROL(1, sustain_level));
-            case 107:
+            case Op2_EnvScale_MidiController:
                 return pack_AR_RS_Value(OP_CONTROL(1, attack_rate),
                                         OP_CONTROL(1, rate_scaling) = value >> 5);
-            case 108:
+            case Op3_Attack_MidiController:
                 return pack_AR_RS_Value(OP_CONTROL(2, attack_rate) = INVERT(value) >> 2,
                                         OP_CONTROL(2, rate_scaling));
-            case 109:
+            case Op3_Decay1_MidiController:
                 return OP_CONTROL(2, decay1_rate) = INVERT(value) >> 2;
-            case 110:
+            case Op3_Sustain_MidiController:
                 return pack_RR_SL_Value(OP_CONTROL(2, release_rate),
                                         OP_CONTROL(2, sustain_level) = INVERT(value) >> 3);
-            case 111:
+            case Op3_Decay2_MidiController:
                 return OP_CONTROL(2, decay2_rate) = INVERT(value) >> 2;
-            case 112:
+            case Op3_Release_MidiController:
                 return pack_RR_SL_Value(OP_CONTROL(2, release_rate) = INVERT(value) >> 3,
                                         OP_CONTROL(2, sustain_level));
-            case 113:
+            case Op3_EnvScale_MidiController:
                 return pack_AR_RS_Value(OP_CONTROL(2, attack_rate),
                                         OP_CONTROL(2, rate_scaling) = value >> 5);
-            case 114:
+            case Op4_Attack_MidiController:
                 return pack_AR_RS_Value(OP_CONTROL(3, attack_rate) = INVERT(value) >> 2,
                                         OP_CONTROL(3, rate_scaling));
-            case 115:
+            case Op4_Decay1_MidiController:
                 return OP_CONTROL(3, decay1_rate) = INVERT(value) >> 2;
-            case 116:
+            case Op4_Sustain_MidiController:
                 return pack_RR_SL_Value(OP_CONTROL(3, release_rate),
                                         OP_CONTROL(3, sustain_level) = INVERT(value) >> 3);
-            case 117:
+            case Op4_Decay2_MidiController:
                 return OP_CONTROL(3, decay2_rate) = INVERT(value) >> 2;
-            case 118:
+            case Op4_Release_MidiController:
                 return pack_RR_SL_Value(OP_CONTROL(3, release_rate) = INVERT(value) >> 3,
                                         OP_CONTROL(3, sustain_level));
-            case 119:
+            case Op4_EnvScale_MidiController:
                 return pack_AR_RS_Value(OP_CONTROL(3, attack_rate),
                                         OP_CONTROL(3, rate_scaling) = value >> 5);
         };
     }
 
     Voice::Voice(Controls &controls, int fm_channel)
-    : m_controls(&controls), m_fm_channel(fm_channel)
+    : m_controls(&controls), m_fm_channel(fm_channel), m_velocity(0)
     {
-        // TODO: initialise controls based on the arg given
-
-        //for (int i = 0; i < 4; ++ i) {
-            //m_timed_controls[i].started = false;
-            //m_timed_controls[i].am_started = false;
-        //}
-
-        // TODO: Move channel/operator init into Voice::on
-
-        //setChannelRegister(0xb0, 0x03);     // ALGO/FEEDBACK
-        setChannelRegister(0xb0, 0x07);     // ALGO/FEEDBACK  - useful for testing as all ops are carriers
-
-        for (int op = 0; op < 4; ++ op) {
-            //setOperatorRegister(op, 0x30, 0x01);    // MUL/DT
-            setOperatorRegister(op, 0x40, 0x20);    // TL
-            //setOperatorRegister(op, 0x50, 0x0b);    // AR/RS
-            //setOperatorRegister(op, 0x60, 0x00);    // DR/AMON
-            //setOperatorRegister(op, 0x70, 0x00);    // SR
-            //setOperatorRegister(op, 0x80, 0x05);    // RR/SL
-            setOperatorRegister(op, 0x90, 0x00);    // SSG-EG
-        }
-
-        // TODO: Set output/ams/pms properly
-        //setChannelRegister(0xb4, 0xf0);
     }
 
     void Voice::setPitch(uint8_t note, int16_t bend_amount)
@@ -578,19 +563,21 @@ namespace YM2612 {
         // Each operator may start at a different time so the note doesn't
         // really start here
         
-        // TODO: store the velocity and use this to calculate the level for
-        // each operator
         // TODO: SSG-EG
+
+        m_velocity = velocity;
 
         setChannelRegister(ALGO_FEED_ChannelRegister, pack_ALGO_FEED_Value(
             m_controls->algorithm,
             m_controls->op1_feedback));
 
+        // PM sensitivity will be enabled in Update() when PM start delay elapses
+        m_pm_started = false;
         setChannelRegister(L_R_AMS_PMS_ChannelRegister, pack_L_R_AMS_PMS_Value(
             m_controls->left_output_enable,
             m_controls->right_output_enable,
             m_controls->am_sensitivity,
-            m_controls->pm_sensitivity));
+            0));
 
         for (int op = 0; op < 4; ++ op) {
             m_timed_controls[op].started = false;
@@ -600,10 +587,9 @@ namespace YM2612 {
                 m_controls->operators[op].frequency_multiplier,
                 m_controls->operators[op].detune));
 
-        #if 0
-            // TODO: Total level needs to consider velo-to-level, velocity
-            setOperatorRegister(op, TL_OperatorRegister, 0);
-        #endif
+            uint8_t total_level = 127 - getScaledLevel(velocity, m_controls->operators[op].velocity_to_level,
+                                                                 m_controls->operators[op].level);
+            setOperatorRegister(op, TL_OperatorRegister, total_level);
 
             setOperatorRegister(op, AR_RS_OperatorRegister, pack_AR_RS_Value(
                 m_controls->operators[op].attack_rate,
@@ -620,6 +606,9 @@ namespace YM2612 {
             setOperatorRegister(op, RR_SL_OperatorRegister, pack_RR_SL_Value(
                 m_controls->operators[op].release_rate,
                 m_controls->operators[op].sustain_level));
+
+            // TODO: Maybe support this in future
+            setOperatorRegister(op, SSGEG_OperatorRegister, 0x00);
         }
     }
 
@@ -634,129 +623,173 @@ namespace YM2612 {
             m_timed_controls[i].started = true;
         }
 
-        return 2000;        // TODO
+        return 2000;        // TODO: Base on the longest carrier release time
     }
 
     // Synth implementation will have packed a register value already so we
-    // just need to figure out which register to update
+    // just need to figure out which register to update (an exception is total_level
+    // which needs to take velocity and velocity sensitivity into consideration)
     void Voice::setControl(uint8_t control, int16_t value)
     {
         // Start times are set by Synth already and will be handled by Update()
         switch (control) {
-            case 9:
-            case 78:
+            case Algorithm_MidiController:
+            case Op1_Feedback_MidiController:
                 setChannelRegister(ALGO_FEED_ChannelRegister, value);
                 break;
 
-            case 10:
-            case 14:
-            case 15:
-                setChannelRegister(L_R_AMS_PMS_ChannelRegister, value);
+            case AMDepth_MidiController:
+                setChannelRegister(L_R_AMS_PMS_ChannelRegister, pack_L_R_AMS_PMS_Value(
+                    m_controls->left_output_enable,
+                    m_controls->right_output_enable,
+                    m_controls->am_sensitivity,
+                    m_pm_started ? m_controls->pm_sensitivity : 0
+                ));
                 break;
 
-            // TODO: Level, velocity to level
+            case PMDepth_MidiController: {
+                setChannelRegister(L_R_AMS_PMS_ChannelRegister, pack_L_R_AMS_PMS_Value(
+                    m_controls->left_output_enable,
+                    m_controls->right_output_enable,
+                    m_controls->am_sensitivity,
+                    m_pm_started ? m_controls->pm_sensitivity : 0
+                ));
+                break;
+            }
 
-            case 70:
-            case 74:
+            case Op1_Level_MidiController: {
+            case Op1_Velocity_MidiController:
+                uint8_t total_level = 127 - getScaledLevel(m_velocity, m_controls->operators[0].velocity_to_level,
+                                                                       m_controls->operators[0].level);
+                setOperatorRegister(0, TL_OperatorRegister, total_level);
+                break;
+            }
+
+            case Op2_Level_MidiController: {
+            case Op2_Velocity_MidiController:
+                uint8_t total_level = 127 - getScaledLevel(m_velocity, m_controls->operators[1].velocity_to_level,
+                                                                       m_controls->operators[1].level);
+                setOperatorRegister(1, TL_OperatorRegister, total_level);
+                break;
+            }
+
+            case Op3_Level_MidiController: {
+            case Op3_Velocity_MidiController:
+                uint8_t total_level = 127 - getScaledLevel(m_velocity, m_controls->operators[2].velocity_to_level,
+                                                                       m_controls->operators[2].level);
+                setOperatorRegister(2, TL_OperatorRegister, total_level);
+                break;
+            }
+
+            case Op4_Level_MidiController: {
+            case Op4_Velocity_MidiController:
+                uint8_t total_level = 127 - getScaledLevel(m_velocity, m_controls->operators[3].velocity_to_level,
+                                                                       m_controls->operators[3].level);
+                setOperatorRegister(3, TL_OperatorRegister, total_level);
+                break;
+            }
+
+            case Op1_FreqX_MidiController:
+            case Op1_Detune_MidiController:
                 setOperatorRegister(0, MUL_DT_OperatorRegister, value);
                 break;
 
-            case 71:
-            case 75:
+            case Op2_FreqX_MidiController:
+            case Op2_Detune_MidiController:
                 setOperatorRegister(1, MUL_DT_OperatorRegister, value);
                 break;
 
-            case 72:
-            case 76:
+            case Op3_FreqX_MidiController:
+            case Op3_Detune_MidiController:
                 setOperatorRegister(2, MUL_DT_OperatorRegister, value);
                 break;
 
-            case 73:
-            case 77:
+            case Op4_FreqX_MidiController:
+            case Op4_Detune_MidiController:
                 setOperatorRegister(3, MUL_DT_OperatorRegister, value);
                 break;
 
-            case 85:
-            case 90:
+            case Op1_Attack_MidiController:
+            case Op1_EnvScale_MidiController:
                 setOperatorRegister(0, AR_RS_OperatorRegister, value);
                 break;
 
-            case 86:
+            case Op1_Decay1_MidiController:
                 setOperatorRegister(0, DR_AMON_OperatorRegister, pack_DR_AMON_Value(
                     value,
                     m_timed_controls[0].am_started
                 ));
                 break;
 
-            case 87:
-            case 89:
+            case Op1_Sustain_MidiController:
+            case Op1_Release_MidiController:
                 setOperatorRegister(0, RR_SL_OperatorRegister, value);
                 break;
 
-            case 88:
+            case Op1_Decay2_MidiController:
                 setOperatorRegister(0, SR_OperatorRegister, value);
                 break;
 
-            case 102:
-            case 107:
+            case Op2_Attack_MidiController:
+            case Op2_EnvScale_MidiController:
                 setOperatorRegister(1, AR_RS_OperatorRegister, value);
                 break;
 
-            case 103:
+            case Op2_Decay1_MidiController:
                 setOperatorRegister(1, DR_AMON_OperatorRegister, pack_DR_AMON_Value(
                     value,
                     m_timed_controls[1].am_started
                 ));
                 break;
 
-            case 104:
-            case 106:
+            case Op2_Sustain_MidiController:
+            case Op2_Release_MidiController:
                 setOperatorRegister(1, RR_SL_OperatorRegister, value);
                 break;
 
-            case 105:
+            case Op2_Decay2_MidiController:
                 setOperatorRegister(1, SR_OperatorRegister, value);
                 break;
 
-            case 108:
-            case 113:
+            case Op3_Attack_MidiController:
+            case Op3_EnvScale_MidiController:
                 setOperatorRegister(2, AR_RS_OperatorRegister, value);
                 break;
 
-            case 109:
+            case Op3_Decay1_MidiController:
                 setOperatorRegister(2, DR_AMON_OperatorRegister, pack_DR_AMON_Value(
                     value,
                     m_timed_controls[2].am_started
                 ));
                 break;
 
-            case 110:
-            case 112:
+            case Op3_Sustain_MidiController:
+            case Op3_Release_MidiController:
                 setOperatorRegister(2, RR_SL_OperatorRegister, value);
                 break;
 
-            case 111:
+            case Op3_Decay2_MidiController:
                 setOperatorRegister(2, SR_OperatorRegister, value);
                 break;
 
-            case 114:
-            case 119:
+            case Op4_Attack_MidiController:
+            case Op4_EnvScale_MidiController:
                 setOperatorRegister(3, AR_RS_OperatorRegister, value);
                 break;
 
-            case 115:
+            case Op4_Decay1_MidiController:
                 setOperatorRegister(3, DR_AMON_OperatorRegister, pack_DR_AMON_Value(
                     value,
                     m_timed_controls[3].am_started
                 ));
                 break;
 
-            case 116:
-            case 118:
+            case Op4_Sustain_MidiController:
+            case Op4_Release_MidiController:
                 setOperatorRegister(3, RR_SL_OperatorRegister, value);
                 break;
 
-            case 117:
+            case Op4_Decay2_MidiController:
                 setOperatorRegister(3, SR_OperatorRegister, value);
                 break;
         }
@@ -769,7 +802,28 @@ namespace YM2612 {
         bool update_key_reg = false;
 
         for (int op = 0; op < 4; ++ op) {
-            if (elapsed >= (uint16_t)m_controls->operators[op].start * 100) {
+            // Diode clamp limits range, preventing a zero start time being possible with pot only
+            // so need to ignore the lower-end
+            uint16_t start_time = m_controls->operators[op].start;
+            if (start_time < 4) {
+                start_time = 0;
+            } else {
+                start_time -= 4;
+            }
+
+            // AM start doesn't have a CV jack so don't need to compensate for diode clamp
+            uint16_t am_start_time = m_controls->operators[op].am_start;
+
+            // Range: 0=0ms, 32=128ms, 64=512ms, 96=1152ms, 127=2016ms
+            start_time *= start_time;
+            start_time /= 8;
+
+            // Same range as above, but offset by start time
+            am_start_time *= am_start_time;
+            am_start_time /= 8;
+            am_start_time += start_time;
+
+            if (elapsed >= start_time) {
                 key_reg_value |= 0x10 << op;
                 if (!m_timed_controls[op].started) {
                     m_timed_controls[op].started = true;
@@ -777,13 +831,29 @@ namespace YM2612 {
                 }
             }
 
-            if (elapsed >= (uint16_t)m_controls->operators[op].am_start * 100) {
+            if (elapsed >= am_start_time) {
                 if (!m_timed_controls[op].am_started) {
                     m_timed_controls[op].am_started = true;
                     setOperatorRegister(op, DR_AMON_OperatorRegister, pack_DR_AMON_Value(
                         m_controls->operators[op].decay1_rate,
                         m_timed_controls[op].am_started));
                 }
+            }
+        }
+
+        uint16_t pm_start_time = m_controls->pm_start;
+        pm_start_time *= pm_start_time;
+        pm_start_time /= 8;
+
+        if (elapsed > pm_start_time) {
+            if (!m_pm_started) {
+                m_pm_started = true;
+                setChannelRegister(L_R_AMS_PMS_ChannelRegister, pack_L_R_AMS_PMS_Value(
+                    m_controls->left_output_enable,
+                    m_controls->right_output_enable,
+                    m_controls->am_sensitivity,
+                    m_controls->pm_sensitivity
+                ));
             }
         }
 
@@ -811,17 +881,6 @@ int8_t test_note = 40;
 
 void loop()
 {
-    /*
-    g_synth.noteOn(0, test_note, 0x7f);
-    delay(500);
-    g_synth.noteOff(0, test_note ++);
-    delay(500);
-
-    if (test_note < 0) {
-        test_note = 0;
-    }
-    */
-
     if (MIDI.read()) {
         switch(MIDI.getType()) {
             case midi::NoteOn:
@@ -844,220 +903,3 @@ void loop()
 
     g_synth.process();
 }
-
-/*
-enum ControllerNumber {
-    MIDI_CC_LFO_RATE = 3,
-    MIDI_CC_ALGORITHM = 9,
-    MIDI_CC_AMS = 14,
-    MIDI_CC_PMS = 15,
-    MIDI_CC_OP1_AM_START = 16,
-    MIDI_CC_OP2_AM_START = 17,
-    MIDI_CC_OP3_AM_START = 18,
-    MIDI_CC_OP4_AM_START = 19,
-    MIDI_CC_OP1_LEVEL = 20,
-    MIDI_CC_OP2_LEVEL = 21,
-    MIDI_CC_OP3_LEVEL = 22,
-    MIDI_CC_OP4_LEVEL = 23,
-    MIDI_CC_OP1_VELOCITY_TO_LEVEL = 24,
-    MIDI_CC_OP2_VELOCITY_TO_LEVEL = 25,
-    MIDI_CC_OP3_VELOCITY_TO_LEVEL = 26,
-    MIDI_CC_OP4_VELOCITY_TO_LEVEL = 27,
-    MIDI_CC_OP1_START = 28,
-    MIDI_CC_OP2_START = 29,
-    MIDI_CC_OP3_START = 30,
-    MIDI_CC_OP4_START = 31,
-    MIDI_CC_OP1_FREQUENCY_MULTIPLIER = 70,
-    MIDI_CC_OP2_FREQUENCY_MULTIPLIER = 71,
-    MIDI_CC_OP3_FREQUENCY_MULTIPLIER = 72,
-    MIDI_CC_OP4_FREQUENCY_MULTIPLIER = 73,
-    MIDI_CC_OP1_DETUNE = 74,
-    MIDI_CC_OP2_DETUNE = 75,
-    MIDI_CC_OP3_DETUNE = 76,
-    MIDI_CC_OP4_DETUNE = 77,
-    MIDI_CC_OP1_FEEDBACK = 78,
-    MIDI_CC_OP1_ATTACK = 85,
-    MIDI_CC_OP1_DECAY_1 = 86,
-    MIDI_CC_OP1_SUSTAIN = 87,
-    MIDI_CC_OP1_DECAY_2 = 88,
-    MIDI_CC_OP1_RELEASE = 89,
-    MIDI_CC_OP1_ENVELOPE_SCALING = 90,
-    MIDI_CC_OP2_ATTACK = 102,
-    MIDI_CC_OP2_DECAY_1 = 103,
-    MIDI_CC_OP2_SUSTAIN = 104,
-    MIDI_CC_OP2_DECAY_2 = 105,
-    MIDI_CC_OP2_RELEASE = 106,
-    MIDI_CC_OP2_ENVELOPE_SCALING = 107,
-    MIDI_CC_OP3_ATTACK = 108,
-    MIDI_CC_OP3_DECAY_1 = 109,
-    MIDI_CC_OP3_SUSTAIN = 110,
-    MIDI_CC_OP3_DECAY_2 = 111,
-    MIDI_CC_OP3_RELEASE = 112,
-    MIDI_CC_OP3_ENVELOPE_SCALING = 113,
-    MIDI_CC_OP4_ATTACK = 114,
-    MIDI_CC_OP4_DECAY_1 = 115,
-    MIDI_CC_OP4_SUSTAIN = 116,
-    MIDI_CC_OP4_DECAY_2 = 117,
-    MIDI_CC_OP4_RELEASE = 118,
-    MIDI_CC_OP4_ENVELOPE_SCALING = 119
-};
-
-#define PACK_CONTROLLER_MAPPING(pin, channel, controller, steps) \
-    (((uint32_t)pin << 24) | ((uint32_t)channel << 16) | ((uint32_t)controller << 8) | steps)
-
-#define UNPACK_CONTROLLER_MAPPING_MUX_PIN(mapping)      (mapping >> 24)
-#define UNPACK_CONTROLLER_MAPPING_MUX_CHANNEL(mapping)  ((mapping >> 16) & 0x0f)
-#define UNPACK_CONTROLLER_MAPPING_CONTROLLER(mapping)   ((mapping >> 8) & 0x7f)
-#define UNPACK_CONTROLLER_MAPPING_STEPS(mapping)        (mapping & 0xff)
-
-
-#define CONTROLLER_COUNT 48
-const uint32_t g_controller_map[CONTROLLER_COUNT] PROGMEM = {
-    PACK_CONTROLLER_MAPPING(A3, 0,  MIDI_CC_OP2_SUSTAIN, 16),
-    PACK_CONTROLLER_MAPPING(A5, 0,  MIDI_CC_OP4_SUSTAIN, 16),
-
-    PACK_CONTROLLER_MAPPING(A3, 1,  MIDI_CC_OP2_DECAY_2, 32),
-    PACK_CONTROLLER_MAPPING(A5, 1,  MIDI_CC_OP4_DECAY_2, 32),
-
-    PACK_CONTROLLER_MAPPING(A3, 2,  MIDI_CC_OP2_RELEASE, 16),
-    PACK_CONTROLLER_MAPPING(A5, 2,  MIDI_CC_OP4_RELEASE, 16),
-
-    PACK_CONTROLLER_MAPPING(A3, 3,  MIDI_CC_OP2_AM_START, 128),
-    PACK_CONTROLLER_MAPPING(A5, 3,  MIDI_CC_OP4_AM_START, 128),
-
-    PACK_CONTROLLER_MAPPING(A3, 4,  MIDI_CC_OP2_LEVEL, 128),
-    PACK_CONTROLLER_MAPPING(A5, 4,  MIDI_CC_OP4_LEVEL, 128),
-
-    PACK_CONTROLLER_MAPPING(A3, 5,  MIDI_CC_OP2_START, 128),
-    PACK_CONTROLLER_MAPPING(A5, 5,  MIDI_CC_OP4_START, 128),
-
-    PACK_CONTROLLER_MAPPING(A3, 6,  MIDI_CC_OP2_VELOCITY_TO_LEVEL, 128),
-    PACK_CONTROLLER_MAPPING(A5, 6,  MIDI_CC_OP4_VELOCITY_TO_LEVEL, 128),
-
-    PACK_CONTROLLER_MAPPING(A3, 7,  MIDI_CC_OP2_ENVELOPE_SCALING, 4),
-    PACK_CONTROLLER_MAPPING(A5, 7,  MIDI_CC_OP4_ENVELOPE_SCALING, 4),
-
-    PACK_CONTROLLER_MAPPING(A2, 8,  MIDI_CC_OP1_SUSTAIN, 16),
-    PACK_CONTROLLER_MAPPING(A3, 8,  MIDI_CC_OP1_ATTACK, 32),
-    PACK_CONTROLLER_MAPPING(A4, 8,  MIDI_CC_OP3_SUSTAIN, 16),
-    PACK_CONTROLLER_MAPPING(A5, 8,  MIDI_CC_OP3_ATTACK, 32),
-
-    PACK_CONTROLLER_MAPPING(A2, 9,  MIDI_CC_OP1_DECAY_2, 32),
-    PACK_CONTROLLER_MAPPING(A3, 9,  MIDI_CC_OP1_DETUNE, 7),
-    PACK_CONTROLLER_MAPPING(A4, 9,  MIDI_CC_OP3_DECAY_2, 32),
-    PACK_CONTROLLER_MAPPING(A5, 9,  MIDI_CC_OP3_DETUNE, 7),
-
-    PACK_CONTROLLER_MAPPING(A2, 10, MIDI_CC_OP1_RELEASE, 16),
-    PACK_CONTROLLER_MAPPING(A3, 10, MIDI_CC_OP1_DECAY_1, 32),
-    PACK_CONTROLLER_MAPPING(A4, 10, MIDI_CC_OP3_RELEASE, 16),
-    PACK_CONTROLLER_MAPPING(A5, 10, MIDI_CC_OP3_DECAY_1, 32),
-
-    PACK_CONTROLLER_MAPPING(A2, 11, MIDI_CC_OP1_AM_START, 128),
-    PACK_CONTROLLER_MAPPING(A3, 11, MIDI_CC_OP1_FREQUENCY_MULTIPLIER, 16),
-    PACK_CONTROLLER_MAPPING(A4, 11, MIDI_CC_OP3_AM_START, 128),
-    PACK_CONTROLLER_MAPPING(A5, 11, MIDI_CC_OP3_FREQUENCY_MULTIPLIER, 16),
-
-    PACK_CONTROLLER_MAPPING(A2, 12, MIDI_CC_OP1_LEVEL, 128),
-    PACK_CONTROLLER_MAPPING(A3, 12, MIDI_CC_OP2_ATTACK, 32),
-    PACK_CONTROLLER_MAPPING(A4, 12, MIDI_CC_OP3_LEVEL, 128),
-    PACK_CONTROLLER_MAPPING(A5, 12, MIDI_CC_OP4_ATTACK, 32),
-
-    PACK_CONTROLLER_MAPPING(A2, 13, MIDI_CC_OP1_START, 128),
-    PACK_CONTROLLER_MAPPING(A3, 13, MIDI_CC_OP2_DETUNE, 7),
-    PACK_CONTROLLER_MAPPING(A4, 13, MIDI_CC_OP3_START, 128),
-    PACK_CONTROLLER_MAPPING(A5, 13, MIDI_CC_OP4_DETUNE, 7),
-
-    PACK_CONTROLLER_MAPPING(A2, 14, MIDI_CC_OP1_VELOCITY_TO_LEVEL, 128),
-    PACK_CONTROLLER_MAPPING(A3, 14, MIDI_CC_OP2_DECAY_1, 32),
-    PACK_CONTROLLER_MAPPING(A4, 14, MIDI_CC_OP3_VELOCITY_TO_LEVEL, 128),
-    PACK_CONTROLLER_MAPPING(A5, 14, MIDI_CC_OP4_DECAY_1, 32),
-
-    PACK_CONTROLLER_MAPPING(A2, 15, MIDI_CC_OP1_ENVELOPE_SCALING, 4),
-    PACK_CONTROLLER_MAPPING(A3, 15, MIDI_CC_OP2_FREQUENCY_MULTIPLIER, 16),
-    PACK_CONTROLLER_MAPPING(A4, 15, MIDI_CC_OP3_ENVELOPE_SCALING, 4),
-    PACK_CONTROLLER_MAPPING(A5, 15, MIDI_CC_OP4_FREQUENCY_MULTIPLIER, 16)
-};
-
-uint16_t g_control_readings[48][5];
-int g_control_reading_index = 0;
-uint16_t g_control_last_values[48];
-
-void loop()
-{
-    for (int i = 0; i < CONTROLLER_COUNT; ++ i) {
-        uint32_t mapping = pgm_read_dword(&(g_controller_map[i]));
-        
-        // Select multiplexer channel and take reading
-        digitalWrite(8, LOW);
-        DDRD = 0x0f;
-        PORTD = UNPACK_CONTROLLER_MAPPING_MUX_CHANNEL(mapping);
-        uint8_t pin = UNPACK_CONTROLLER_MAPPING_MUX_PIN(mapping);
-        uint16_t reading = analogRead(pin);
-        digitalWrite(8, HIGH);
-
-        // Store the reading
-        g_control_readings[i][g_control_reading_index] = reading;
-        if (++ g_control_reading_index == 5) g_control_reading_index = 0;
-
-        // Total up the readings (sort of works like an average but without doing the division)
-        reading = 0;
-        for (int j = 0; j < 5; ++ j) {
-            reading += g_control_readings[i][j];
-        }
-
-        // Update controls that have changed position by a significant amount (avoiding noise/jitter)
-        if ((reading < g_control_last_values[i] - 8) || (reading > g_control_last_values[i] + 8)) {
-            uint8_t steps = UNPACK_CONTROLLER_MAPPING_STEPS(mapping);
-            uint8_t value = CalcPotVal(reading, steps);
-
-            if (value != CalcPotVal(g_control_last_values[i], steps)) {
-                uint8_t controller = UNPACK_CONTROLLER_MAPPING_CONTROLLER(mapping);
-                //if (controller != MIDI_CC_OP1_FREQUENCY_MULTIPLIER) continue;
-
-                switch (controller) {
-                    case MIDI_CC_OP1_START:
-                    case MIDI_CC_OP2_START:
-                    case MIDI_CC_OP3_START:
-                    case MIDI_CC_OP4_START:
-                    case MIDI_CC_OP1_LEVEL:
-                    case MIDI_CC_OP2_LEVEL:
-                    case MIDI_CC_OP3_LEVEL:
-                    case MIDI_CC_OP4_LEVEL:
-                        // Compensate for protection circuitry resistance
-                        if (value < 3) value = 3;
-                        value = (float)(value - 3) * 1.03;
-                        if (value > 127) value = 127;
-                    default:
-                        break;
-                }
-
-                g_synth.controlChange(0, UNPACK_CONTROLLER_MAPPING_CONTROLLER(mapping), value * (128/steps));
-                g_control_last_values[i] = value;
-            }
-        }
-
-        // Process any incoming MIDI data
-        if (MIDI.read()) {
-            switch(MIDI.getType()) {
-                case midi::NoteOn:
-                    g_synth.noteOn(0, MIDI.getData1(), MIDI.getData2());
-                    break;
-
-                case midi::NoteOff:
-                    g_synth.noteOff(0, MIDI.getData1());
-                    break;
-                    
-                case midi::ControlChange:
-                    g_synth.controlChange(0, MIDI.getData1(), MIDI.getData2());
-                    break;
-
-                case midi::PitchBend:
-                    g_synth.pitchBend(0, (MIDI.getData2() << 7) | MIDI.getData1());
-                    break;
-            }
-        }
-
-        g_synth.process();
-    }
-}
-*/
