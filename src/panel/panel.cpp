@@ -269,12 +269,12 @@ void sendControlValue(uint8_t control_index)
 }
 
 // Update the current value for a control and send it
-void setControlValue(uint8_t control_index, uint8_t value)
+void setControlValue(uint8_t control_index, uint8_t value, bool force_send = false)
 {
     ASSERT(control_index < NumberOfControls);
     ASSERT(value < 0x80);
 
-    if (effective_control_values[control_index] == value) return;
+    if ((effective_control_values[control_index] == value) && (!force_send)) return;
 
     effective_control_values[control_index] = value;
     sendControlValue(control_index);
@@ -342,7 +342,7 @@ void resetControls()
     for (int i = 0; i < NumberOfPots; ++ i) {
         uint8_t value = getMostCommonPotReading(i);
         previous_pot_readings[i] = value;
-        setControlValue(i, value >> 1);
+        setControlValue(i, value >> 1, true);
     }
 }
 
@@ -1312,7 +1312,7 @@ void DebugPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x,
     if ((type == TouchTapEvent) && (hotspot_id == BackButtonHotspotId)) {
         pager.setPage(settings_page);
     } else if (hotspot_id == NoteTriggerButtonId) {
-# if !defined(MOCK_ARDUINO)
+#if !defined(MOCK_ARDUINO)
         if (type == TouchStartEvent) {
             MIDI.sendNoteOn(35, 127, settings.midi_channel + 1);
         } else if (type == TouchEndEvent) {
@@ -1443,7 +1443,7 @@ void setup()
     resetControls();
 
     // Select first algorithm
-    setControlValue(Algorithm_ControlIndex, 0);
+    setControlValue(Algorithm_ControlIndex, 0, true);
 
     delay(1000);
 
