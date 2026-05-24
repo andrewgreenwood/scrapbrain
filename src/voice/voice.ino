@@ -21,6 +21,30 @@
 #define YM2612_DATA_PORTB_BITMASK   0x0b
 #define YM2612_DATA_PORTD_BITMASK   (~YM2612_DATA_PORTB_BITMASK)
 
+// PORTB bits for LED patterns indicating which operators are modulators
+#define OP_MOD_LED_PORTB_BITMASK    0x34    // 00110100
+#define OP1_MOD_LED_PORTB_BIT       bit(5)  // 00100000
+#define OP2_MOD_LED_PORTB_BIT       bit(2)  // 00000100
+#define OP3_MOD_LED_PORTB_BIT       bit(4)  // 00010000
+
+void setOperatorPanelLEDPattern(uint8_t algorithm)
+{
+    static const uint8_t led_bit_map[8] = {
+        OP1_MOD_LED_PORTB_BIT | OP2_MOD_LED_PORTB_BIT | OP3_MOD_LED_PORTB_BIT,
+        OP1_MOD_LED_PORTB_BIT | OP2_MOD_LED_PORTB_BIT | OP3_MOD_LED_PORTB_BIT,
+        OP1_MOD_LED_PORTB_BIT | OP2_MOD_LED_PORTB_BIT | OP3_MOD_LED_PORTB_BIT,
+        OP1_MOD_LED_PORTB_BIT | OP2_MOD_LED_PORTB_BIT | OP3_MOD_LED_PORTB_BIT,
+        OP1_MOD_LED_PORTB_BIT | OP3_MOD_LED_PORTB_BIT,
+        OP1_MOD_LED_PORTB_BIT,
+        OP1_MOD_LED_PORTB_BIT,
+        0
+    };
+
+    if (algorithm < 8) {
+        PORTB = (PORTB & ~OP_MOD_LED_PORTB_BITMASK) | led_bit_map[algorithm];
+    }
+}
+
 float noteToPitch(float note)
 {
     int offset = note - 72;
@@ -409,6 +433,7 @@ namespace YM2612 {
                 break;
 
             case Algorithm_MidiController:
+                setOperatorPanelLEDPattern(value >> 4);
                 return pack_ALGO_FEED_Value(CHANNEL_CONTROL(algorithm) = value >> 4,
                                             CHANNEL_CONTROL(op1_feedback));
             case AMDepth_MidiController:
@@ -472,8 +497,6 @@ namespace YM2612 {
                 return pack_MUL_DT_Value(OP_CONTROL(3, frequency_multiplier),
                                          OP_CONTROL(3, detune) = (7 - scaleControlValue(value, 1, 7)));
             case Op1_Feedback_MidiController:
-                // TODO: This is temporarily forced to zero due to panel not being wired up for it
-                value = 0;                
                 return pack_ALGO_FEED_Value(CHANNEL_CONTROL(algorithm),
                                             CHANNEL_CONTROL(op1_feedback) = value >> 4);
             case PMStart_MidiController:
@@ -871,6 +894,8 @@ YM2612::Synth g_synth;
 
 void setup()
 {
+    DDRB |= OP_MOD_LED_PORTB_BITMASK;
+
     YM2612::init();
 
     MIDI.begin(MIDI_CHANNEL_OMNI);
