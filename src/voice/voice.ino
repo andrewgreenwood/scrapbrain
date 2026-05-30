@@ -9,8 +9,8 @@
 #include "common.h"
 #include "synth.h"
 
-// TODO: IC pin? (currently just pulled HIGH)
 #define YM2612_CLOCK_PIN    3
+#define YM2612_IC_PIN       A0
 #define YM2612_CS_PIN       A1
 #define YM2612_WR_PIN       A2
 #define YM2612_RD_PIN       A3
@@ -239,17 +239,12 @@ namespace YM2612 {
         DDRB &= ~YM2612_DATA_PORTB_BITMASK;
         DDRD &= ~YM2612_DATA_PORTD_BITMASK;
 
+        pinMode(YM2612_IC_PIN, OUTPUT);
         pinMode(YM2612_CS_PIN, OUTPUT);
         pinMode(YM2612_RD_PIN, OUTPUT);
         pinMode(YM2612_WR_PIN, OUTPUT);
         pinMode(YM2612_A0_PIN, OUTPUT);
         pinMode(YM2612_A1_PIN, OUTPUT);
-
-        digitalWrite(YM2612_CS_PIN, HIGH);
-        digitalWrite(YM2612_RD_PIN, HIGH);
-        digitalWrite(YM2612_WR_PIN, HIGH);
-        digitalWrite(YM2612_A0_PIN, LOW);
-        digitalWrite(YM2612_A1_PIN, LOW);
 
         // Output 8MHz PWM for clock
         pinMode(YM2612_CLOCK_PIN, OUTPUT);
@@ -258,12 +253,17 @@ namespace YM2612 {
         TCNT2 = 0;
         OCR2B = 0;
 
-        // Initialise (TODO)
-        //pinMode(A0, OUTPUT);
-        //digitalWrite(A0, LOW);
-        //delay(10);
-        //digitalWrite(A0, HIGH);
-        //delay(10);
+        digitalWrite(YM2612_CS_PIN, HIGH);
+        digitalWrite(YM2612_RD_PIN, HIGH);
+        digitalWrite(YM2612_WR_PIN, HIGH);
+        digitalWrite(YM2612_A0_PIN, LOW);
+        digitalWrite(YM2612_A1_PIN, LOW);
+
+        // Initialise
+        digitalWrite(YM2612_IC_PIN, LOW);
+        delay(100);
+        digitalWrite(YM2612_IC_PIN, HIGH);
+        delay(100);
 
         // Reset and stop timers, set channel 3 to normal mode
         setGlobalRegister(Channel3ModeAndTimer_GlobalRegister, 0x00);

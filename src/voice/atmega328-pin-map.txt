@@ -13,7 +13,7 @@ Pin map (atmega328):
 11  YM2612 D3
 12  Op3 panel mod LED
 13  Op1 panel mod LED
-A0  -
+A0  YM2612 ~IC
 A1  YM2612 ~CS
 A2  YM2612 ~WR
 A3  YM2612 ~RD
