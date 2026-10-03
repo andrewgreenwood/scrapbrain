@@ -72,7 +72,7 @@ unsigned short noteToYM2612Frequency(float note)
 namespace YM2612 {
     struct Controls {
         Controls()
-        : algorithm(0), op1_feedback(0), left_output_enable(1), right_output_enable(1),
+        : algorithm(7), op1_feedback(0), left_output_enable(1), right_output_enable(1),
           am_sensitivity(0), pm_sensitivity(0), pm_start(0)
         {
             for (int op = 0; op < 4; ++ op) {
@@ -364,7 +364,7 @@ namespace YM2612 {
             {
                 // Only class member initialisation should take place here
                 // This will likely be called before setup() - anything that needs
-                // to set registers should go into Init()
+                // to set registers should go into init()
 
                 for (int ch = 0; ch < 16; ++ ch) {
                     for (int op = 0; op < 4; ++ op) {
@@ -892,6 +892,11 @@ MIDI_CREATE_DEFAULT_INSTANCE()
 
 YM2612::Synth g_synth;
 
+// The panel controller will send a bunch of MIDI events on startup - if no
+// MIDI control changes are received within this time, the panel controller
+// isn't connected (jumper has been removed) so we'll just play a test note.
+#define FIRST_MIDI_CC_EVENT_TIMEOUT    5000
+
 void setup()
 {
     DDRB |= OP_MOD_LED_PORTB_BITMASK;
@@ -900,9 +905,37 @@ void setup()
 
     MIDI.begin(MIDI_CHANNEL_OMNI);
     MIDI.turnThruOff();
-}
 
-int8_t test_note = 40;
+    // Wait for (and handle) the first control change
+    unsigned long time_of_first_midi_cc = 0;
+    while ((time_of_first_midi_cc == 0) && (millis() < FIRST_MIDI_CC_EVENT_TIMEOUT)) {
+        if (MIDI.read()) {
+            switch(MIDI.getType()) {
+                case midi::ControlChange:
+                    if (time_of_first_midi_cc == 0)
+                        time_of_first_midi_cc = millis();
+
+                    g_synth.controlChange(0, MIDI.getData1(), MIDI.getData2());
+                    break;
+            }
+        }
+    }
+
+    // If we timed out waiting for the initial control change, play a single note
+    if (time_of_first_midi_cc == 0) {
+        g_synth.controlChange(0, Op1_Level_MidiController, 0x7f);
+        g_synth.controlChange(0, Op2_Level_MidiController, 0x7f);
+        g_synth.controlChange(0, Op3_Level_MidiController, 0x7f);
+        g_synth.controlChange(0, Op4_Level_MidiController, 0x7f);
+        g_synth.noteOn(0, 60, 0x7f);
+        for (;;) {
+        for (int i = 0x7f; i >= 0x20; -- i) {
+            //g_synth.controlChange(0, Op1_Level_MidiController, i);
+            //delay(100);
+        }
+        }
+    }
+}
 
 void loop()
 {
