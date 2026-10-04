@@ -4,13 +4,15 @@
 */
 
 // Debugging options
-#define WITH_ASSERT             1
-#define WITH_HOTSPOT_OUTLINE    1
+#define WITH_ASSERT             0
+#define WITH_HOTSPOT_OUTLINE    0
 #define WITH_DEBUG_PAGE         1
 
 #define DISPLAY_TCS_PIN         2
 #define DISPLAY_DC_PIN          3
+#define GATE_CV_PIN             8
 #define DISPLAY_BACKLIGHT_PIN   9
+#define CV_ADC_CS_PIN           10
 
 #define MUX_S0_PIN              4
 #define MUX_S1_PIN              5
@@ -22,6 +24,10 @@
 #define MUX_2_COM_PIN           A2
 #define MUX_3_COM_PIN           A0
 
+// These are what the Voice microcontroller expects
+#define MIDI_SEND_CHANNEL       1
+#define CV_SEND_CHANNEL         2
+
 #include <Arduino.h>
 
 #ifdef MOCK_ARDUINO
@@ -31,6 +37,7 @@
 #include <Adafruit_ILI9341.h>
 #include <Adafruit_FT6206.h>
 #include <MIDI.h>
+#include <MCP3XXX.h>
 #endif
 
 #include "panelkit.h"
@@ -50,6 +57,7 @@ midi::SerialMIDI<HardwareSerial, MidiSettings> serialMIDI(Serial);
 midi::MidiInterface<midi::SerialMIDI<HardwareSerial, MidiSettings>, MidiSettings> MIDI((midi::SerialMIDI<HardwareSerial, MidiSettings>&)serialMIDI);
 Adafruit_ILI9341 screen(DISPLAY_TCS_PIN, DISPLAY_DC_PIN);
 Adafruit_FT6206 touchscreen;
+MCP3002 adc;
 #endif
 
 #define EEPROM_SETTINGS_OFFSET  0x000
@@ -264,7 +272,7 @@ void sendControlValue(uint8_t control_index)
     int8_t midi_controller = controlIndexToMidiController(control_index);
     ASSERT(midi_controller != -1);
 #if !defined(MOCK_ARDUINO)
-    MIDI.sendControlChange(midi_controller, effective_control_values[control_index], settings.midi_channel + 1);
+    MIDI.sendControlChange(midi_controller, effective_control_values[control_index], MIDI_SEND_CHANNEL);
 #endif
 }
 
@@ -370,6 +378,18 @@ class TopBar: public Panel {
             }
         }
 
+        void setGateIndicatorState(bool state)
+        {
+            int16_t x = 212;
+
+            if (state) {
+                drawGraphic(GRAPHIC_GREEN_INDICATOR, x, 9);
+            } else {
+                setColour(BACKGROUND_COLOUR);
+                fillRectangle(x, 9, 5, 5);
+            }
+        }
+
     private:
         virtual void draw()
         {
@@ -380,6 +400,11 @@ class TopBar: public Panel {
             // Title
             setCursor(12, 8);
             print(F("Scrap Brain YM2612"));
+
+            // Gate CV indicator
+            drawGraphic(GRAPHIC_INDICATOR_OUTLINE, 211, 8);
+            setCursor(224, 8);
+            print(F("Gate"));
 
             // MIDI indicator
             drawGraphic(GRAPHIC_INDICATOR_OUTLINE, 272, 8);
@@ -863,15 +888,35 @@ class DebugPage: public Page {
             }
         }
 
-        void updatePotReadTimeMeasurement(uint16_t time)
+        void updateCVReadings(uint16_t voct, uint16_t velocity)
         {
             setColour(COLOUR_BLACK);
-            fillRectangle(259, 189, 26, 10);
+            fillRectangle(170, 189, 100, 10);
 
             setTextSize(1);
-            setCursor(260, 190);
-            setColour(COLOUR_BRIGHT_BLUE);
-            print(time);
+            setCursor(170, 190);
+            setColour(COLOUR_BRIGHT_RED);
+            if (voct < 0x10) { print("000"); }
+            else if (voct < 0x100) { print("00"); }
+            else if (voct < 0x1000) { print("0"); }
+            print(voct, HEX);
+
+            setCursor(230, 190);
+            if (velocity < 0x10) { print("000"); }
+            else if (velocity < 0x100) { print("00"); }
+            else if (velocity < 0x1000) { print("0"); }
+            print(velocity, HEX);
+        }
+
+        void updatePotReadTimeMeasurement(uint16_t time)
+        {
+            //setColour(COLOUR_BLACK);
+            //fillRectangle(259, 189, 26, 10);
+
+            //setTextSize(1);
+            //setCursor(260, 190);
+            //setColour(COLOUR_BRIGHT_BLUE);
+            //print(time);
         }
 
     private:
@@ -1054,6 +1099,10 @@ class MainPage: public Page {
 
         void setAlgorithm(uint8_t algorithm)
         {
+            // TODO: only draw if this is the current page
+            if (!isActive())
+                return;
+
             if ((algorithm < 8) && (algorithm != m_algorithm)) {
                 forceBackgroundColour(true);
                 drawCurrentAlgorithm();
@@ -1314,14 +1363,16 @@ void DebugPage::onTouchEvent(TouchEventType type, uint8_t hotspot_id, int16_t x,
     } else if (hotspot_id == NoteTriggerButtonId) {
 #if !defined(MOCK_ARDUINO)
         if (type == TouchStartEvent) {
-            MIDI.sendNoteOn(35, 127, settings.midi_channel + 1);
+            MIDI.sendNoteOn(35, 127, MIDI_SEND_CHANNEL);
         } else if (type == TouchEndEvent) {
-            MIDI.sendNoteOff(35, 127, settings.midi_channel + 1);
+            MIDI.sendNoteOff(35, 127, MIDI_SEND_CHANNEL);
         }
 #endif
     }
 }
 #endif
+
+bool g_gate_cv_state = false;
 
 #define MIDI_INDICATOR_BLINK_TIME   250
 unsigned long last_midi_event_time = 0;
@@ -1349,6 +1400,72 @@ void processMidi()
 #endif
             }
         }
+
+        // Forward on to Voice microcontroller on channel 1
+        switch (MIDI.getType()) {
+            case midi::NoteOn:
+            case midi::NoteOff:
+            case midi::ControlChange:
+            case midi::PitchBend:
+                MIDI.send(MIDI.getType(), MIDI.getData1(), MIDI.getData2(), MIDI_SEND_CHANNEL);
+                break;
+        }
+    }
+#endif
+}
+
+uint16_t velocity_cv_value = 0xffff;
+uint16_t voct_cv_value = 0xffff;
+
+void processCV()
+{
+#if !defined(MOCK_ARDUINO)
+    // CV inputs get routed through to the Voice microcontroller on MIDI channel 2
+    uint16_t new_velocity_cv_value = adc.analogRead(0);
+    uint16_t new_voct_cv_value = adc.analogRead(1);
+
+    // Gate input is inverted
+    if (digitalRead(GATE_CV_PIN) == LOW) {
+        if (!g_gate_cv_state) {
+            MIDI.sendNoteOn(60, 0x7f, CV_SEND_CHANNEL);
+            g_gate_cv_state = true;
+            top_bar.setGateIndicatorState(true);
+        }
+    } else {
+        if (g_gate_cv_state) {
+            MIDI.sendNoteOff(60, 0x7f, CV_SEND_CHANNEL);
+            g_gate_cv_state = false;
+            top_bar.setGateIndicatorState(false);
+        }
+    }
+
+    // Velocity is sent as aftertouch
+    // TODO: Redo bitshift when using a higher-resolution ADC
+    if (new_velocity_cv_value != velocity_cv_value) {
+        velocity_cv_value = new_velocity_cv_value;
+        MIDI.sendAfterTouch(velocity_cv_value >> 3, CV_SEND_CHANNEL);
+#if WITH_DEBUG_PAGE == 1
+        if (pager.isCurrentPage(debug_page)) {
+            debug_page.updateCVReadings(voct_cv_value, velocity_cv_value);
+        }
+#endif
+    }
+
+    // V/Oct is sent as a pitch bend
+    // TODO: Redo calculation after upgrading to a higher-resolution ADC
+    if (new_voct_cv_value != voct_cv_value) {
+        voct_cv_value = new_voct_cv_value;
+        // each octave is 0x71
+        // decrease to have higher base octave
+        // 0x3d4 seems too low...
+        int value = 0x479 - (int)voct_cv_value;
+        if (value < 0) value = 0;
+        MIDI.sendPitchBend(value, CV_SEND_CHANNEL);
+#if WITH_DEBUG_PAGE == 1
+        if (pager.isCurrentPage(debug_page)) {
+            debug_page.updateCVReadings(voct_cv_value, velocity_cv_value);
+        }
+#endif
     }
 #endif
 }
@@ -1388,6 +1505,9 @@ void firstTimeInit()
 
 void setup()
 {
+    pinMode(GATE_CV_PIN, INPUT_PULLUP);
+    pinMode(CV_ADC_CS_PIN, OUTPUT);
+
     pinMode(MUX_S0_PIN, OUTPUT);
     pinMode(MUX_S1_PIN, OUTPUT);
     pinMode(MUX_S2_PIN, OUTPUT);
@@ -1433,8 +1553,11 @@ void setup()
         // TODO
     }
 
+    adc.begin(CV_ADC_CS_PIN);
+
     MIDI.begin(settings.midi_channel + 1);
-    MIDI.setThruFilterMode(midi::Thru::SameChannel);
+    MIDI.turnThruOff();
+    //MIDI.setThruFilterMode(midi::Thru::SameChannel);
 #endif
 
     // Keep the splash page up briefly to allow the synth some time to be ready
@@ -1468,14 +1591,17 @@ void loop()
         analogRead(MUX_1_COM_PIN);
         pot_readings[mux_channel][pot_reading_index] = analogRead(MUX_1_COM_PIN) >> 2;
         processMidi();
+        processTouchscreenInput();
 
         analogRead(MUX_2_COM_PIN);
         pot_readings[16 + mux_channel][pot_reading_index] = analogRead(MUX_2_COM_PIN) >> 2;
         processMidi();
+        processTouchscreenInput();
 
         analogRead(MUX_3_COM_PIN);
         pot_readings[32 + mux_channel][pot_reading_index] = analogRead(MUX_3_COM_PIN) >> 2;
         processMidi();
+        processTouchscreenInput();
 
         if (mux_channel < 8) {
             analogRead(MAIN_MUX_COM_PIN);
@@ -1486,6 +1612,9 @@ void loop()
 #endif
         processTouchscreenInput();
     }
+
+    processCV();
+    processTouchscreenInput();
 
 #if WITH_DEBUG_PAGE == 1
     if (pager.isCurrentPage(debug_page)) {

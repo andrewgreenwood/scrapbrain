@@ -2,7 +2,12 @@
     SCRAP BRAIN - YM2612 Hardware Synth - Panel
     Author: Andrew Greenwood
 
-    All output goes to both L/R channels
+    MIDI is received on channels 1 and 2
+    The panel microcontroller may receive external MIDI on a configured
+    MIDI input channel but will forward it on channel 1. Channel 2 is
+    used for handling CV inputs from the panel microcontroller.
+
+    All audio output goes to both L/R channels of the YM2612.
 */
 
 #include <MIDI.h>
@@ -55,7 +60,7 @@ unsigned short noteToYM2612Frequency(float note)
 {
     unsigned char block = 0;
     unsigned short frequency;
-    float offset = note - 92;
+    float offset = note - 94;
 
     if (offset >= 1) {
         block = offset / 12;
@@ -290,11 +295,12 @@ namespace YM2612 {
     class Voice: public SynthNote {
         public:
             Voice()
-            : m_controls(NULL), m_fm_channel(-1), m_velocity(0), m_pm_started(false)
+            : m_channel(0), m_controls(NULL), m_fm_channel(-1),
+              m_velocity(0), m_pm_started(false)
             {
             }
 
-            Voice(Controls &controls, int fm_channel);
+            Voice(uint8_t channel, Controls &controls, int fm_channel);
 
             virtual ~Voice()
             { }
@@ -336,14 +342,13 @@ namespace YM2612 {
             // Scales a level based on velocity and velocity sensitivity
             uint8_t getScaledLevel(uint8_t velocity, uint8_t velocity_sensitivity, uint8_t level)
             {
-                // TODO: Re-enable this, for now just return level for testing purposes
-                return level;
                 uint16_t curved_velocity = ((uint16_t)velocity * velocity) / 127;
                 uint16_t velocity_range = ((uint16_t)velocity_sensitivity * level) / 127;
                 uint16_t base_level = level - velocity_range;
                 return base_level + (curved_velocity * velocity_range) / 127;
             }
 
+            uint8_t m_channel;
             Controls *m_controls;
             int m_fm_channel;
             uint8_t m_velocity;
@@ -366,11 +371,9 @@ namespace YM2612 {
                 // This will likely be called before setup() - anything that needs
                 // to set registers should go into init()
 
-                for (int ch = 0; ch < 16; ++ ch) {
-                    for (int op = 0; op < 4; ++ op) {
-                        m_controls[ch].operators[op].start = 0;
-                        m_controls[ch].operators[op].am_start = 0;  //10 * (4 - op);      // test
-                    }
+                for (int op = 0; op < 4; ++ op) {
+                    m_controls.operators[op].start = 0;
+                    m_controls.operators[op].am_start = 0;  //10 * (4 - op);      // test
                 }
             }
 
@@ -388,7 +391,7 @@ namespace YM2612 {
         private:
             Voice m_voices[6];
             uint8_t m_allocated_voice_bitmap;
-            Controls m_controls[16];
+            Controls m_controls;
     };
 
     SynthNote* Synth::allocateNote(uint8_t channel)
@@ -396,7 +399,7 @@ namespace YM2612 {
         for (int i = 0; i < 6; ++ i) {
             if (!(m_allocated_voice_bitmap & (1 << i))) {
                 m_allocated_voice_bitmap |= 1 << i;
-                m_voices[i] = Voice(m_controls[channel], i);
+                m_voices[i] = Voice(channel, m_controls, i);
                 return &m_voices[i];
             }
         }
@@ -422,10 +425,10 @@ namespace YM2612 {
             (127-v)
 
         #define CHANNEL_CONTROL(prop) \
-            m_controls[channel].prop
+            m_controls.prop
 
         #define OP_CONTROL(op, prop) \ 
-            m_controls[channel].operators[op].prop
+            m_controls.operators[op].prop
 
         switch (control) {
             case LFORate_MidiController:
@@ -568,15 +571,22 @@ namespace YM2612 {
         };
     }
 
-    Voice::Voice(Controls &controls, int fm_channel)
-    : m_controls(&controls), m_fm_channel(fm_channel), m_velocity(0)
+    Voice::Voice(uint8_t channel, Controls &controls, int fm_channel)
+    : m_channel(channel), m_controls(&controls), m_fm_channel(fm_channel), m_velocity(0)
     {
     }
 
     void Voice::setPitch(uint8_t note, int16_t bend_amount)
     {
         uint16_t freq;
-        freq = noteToYM2612Frequency((float)note + ((float)bend_amount / 4096));
+        if (m_channel == 0) {
+            // Regular MIDI pitch bend range of +/- 2 semitones
+            freq = noteToYM2612Frequency((float)note + ((float)bend_amount / 4096));
+        } else {
+            // V/Oct CV input - note is ignored, bend amount alone determines pitch
+            // TODO: Change this when using higher-resolution ADC
+            freq = noteToYM2612Frequency(((float)bend_amount - 8192) / 9.417);
+        }
         setChannelRegister(0xa4, freq >> 8);
         setChannelRegister(0xa0, freq & 0xff);
     }
@@ -939,22 +949,24 @@ void setup()
 
 void loop()
 {
+    // Note that 'Synth' uses zero-based channel numbering, whereas the
+    // Arduino MIDI library is one-based.
     if (MIDI.read()) {
         switch(MIDI.getType()) {
             case midi::NoteOn:
-                g_synth.noteOn(0, MIDI.getData1(), MIDI.getData2());
+                g_synth.noteOn(MIDI.getChannel() - 1, MIDI.getData1(), MIDI.getData2());
                 break;
 
             case midi::NoteOff:
-                g_synth.noteOff(0, MIDI.getData1());
+                g_synth.noteOff(MIDI.getChannel() - 1, MIDI.getData1());
                 break;
                 
             case midi::ControlChange:
-                g_synth.controlChange(0, MIDI.getData1(), MIDI.getData2());
+                g_synth.controlChange(MIDI.getChannel() - 1, MIDI.getData1(), MIDI.getData2());
                 break;
 
             case midi::PitchBend:
-                g_synth.pitchBend(0, (MIDI.getData2() << 7) | MIDI.getData1());
+                g_synth.pitchBend(MIDI.getChannel() - 1, (MIDI.getData2() << 7) | MIDI.getData1());
                 break;
         }
     }
