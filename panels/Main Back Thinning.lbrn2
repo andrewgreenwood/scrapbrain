@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightBurnProject AppVersion="2.0.05" DeviceName="Creality Falcon2" FormatVersion="1" MaterialHeight="0" MirrorX="False" MirrorY="False">
+    <Thumbnail Source="iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAYAAABccqhmAAAACXBIWXMAAAsTAAALEwEAmpwYAAAH/ElEQVR4nO3dzYvVdRvH8WvULCRSGwIlK8uhGqEHekBbhAVFhe1aGrRy265NELWoRfQHtGgt2LYHWmRE0cKawEZKsqHQSTHLacZRp5k5c2ZanFtvB264O/X7Ndbn9QIXHuZ7nYvBeTucxfc3sLS0tFQXnT9ftX9/1fBwAf8yR45U7dlTtW7dpZcGlgXg8OGqBx/s/QH+XUZGqkZHq+6889JLa5Z9weBg1Q03VH322d+9GtC2zZurNmxY9tKqFVoFuAIIAAQTAAgmABBMACCYAEAwAYBgAgDBBACCCQAEEwAIJgAQTAAg2Jr//yV/v3feeae2bdvW2vzFxcUaHx+v3bt3933uvffea3W3hYWF+vnnn+vxxx/v69zc3FwdOHCgtm7d2s5i/3mP6enpeuSRR/o6d/78+fr000/rlltuaWexqpqdna2ZmZl6+OGH+zr366+/1sjISG3ZsqWlzapmZmaq2+3Wzp07W3uPP2v5fQAnT1bt2FF14sQKrlS1atWqGh4eroGBgVbmd7vdGhsbq4WFhb7OnTt3rtavX1/bt29vZa+qqk6nUz/++GPNzMz0de7bb7+tu+66q+64446WNuv9kJ05c6ampqb6OvfRRx/V7t27a2hoqKXNqi5cuFCzs7N16tSpvs7t27ev9u7dW7fddltLm/X+3QwMDNSxY8dae48/ZPPmqkOHqjZtuvTSFfkbwOrVq2t0dLTWrGlnvbNnz/6p/43Wrl1ba9eura+//rqFrXqOHz9eu3bt6vvcxo0ba3BwsNXdRkdH67nnnuv73JYtW2rr1q2t7vbJJ5/Uyy+/3Pe5oaGhuvvuu+vgwYMtbNXz/vvv15tvvtna/L/CZwAQTAAgmABAMAGAYAIAwQQAggkABBMACCYAEEwAIJgAQDABgGACAMEEAIIJAAQTAAgmABBMACDYFXklWFXV6dOnW7sSbHp6ui6/CrEfS0tLdfr06YY3+q8zZ87U4uJi3+cWFxdrcXGx1d0mJiaq2+32fa7b7dbCwkKru01OTvZ9x2NV7xLWTqfT6m5TU1PV6XRam/9XXJEBWFpaqvvvv7/V+bOzs32fm5+fr263W/fcc08LW/V0u9367bff+j43PT1dk5OTre62sLDwp8L5008/1fj4eKu7dTqduuaaa/o+Nz4+Xt98802ru83Pz9eGDRtam/9XXJG3AgMt+B+3AvsMAIIJAAQTAAgmABBMACCYAEAwAYBgAgDBBACCCQAEEwAIJgAQTAAgmABAMAGAYAIAwQQAggkABBMACCYAEEwAIJgAQDABgGACAMEEAIIJAAQTAAgmABBMACCYAEAwAYBgAgDBBACCCQAEEwAIJgAQTAAgmABAMAGAYAIAwQQAggkABBMACCYAEEwAIJgAQDABgGACAMEEAIIJAAQTAAgmABBMACCYAEAwAYBgAgDBBACCCQAEEwAIJgAQTAAgmABAMAGAYAIAwQQAggkABBMACCYAEEwAIJgAQDABgGACAMEEAIIJAAQTAAgmABBMACCYAEAwAYBgAgDBBACCCQAEEwAIJgAQTAAgmABAMAGAYAIAwQQAggkABBMACCYAEEwAIJgAQDABgGACAMEEAIIJAAQTAAgmABBMACCYAEAwAYBgAgDBBACCCQAEEwAIJgAQTAAgmABAMAGAYAIAwQQAggkABBMACCYAEEwAIJgAQDABgGACAMEEAIIJAAQTAAgmABBMACCYAEAwAYBgAgDBBACCCQAEEwAIJgAQTAAgmABAMAGAYAIAwQQAggkABBMACCYAEEwAIJgAQDABgGACAMEEAIIJAAQTAAgmABBMACCYAEAwAYBgAgDBBACCCQAEEwAIJgAQTAAgmABAMAGAYAIAwdasxJvu2lV1/fVV117b3MwjR6pefLHqmWeam3nR0FDVzp1VAwPNzRwZqfrww6qbbmpuZlXVwYNVe/dW3XtvczPn56uOHq366qvmZv5Tvf121RtvVA0PNzfz3Lmqs2erPv64uZl/1IoE4NSpqsceq7r11uZmHj5cNTfX3LzLHTtW9dJLVatXNzfz3XerFhebm3dRp1M1PV31xBPNzZycrDpwoLl5/2Rzc1XdbrPf3++/r9q/v7l5/ViRAKxfX/XUU1UPPNDczH37er9VtGFgoGrPnqo1DX63Xnih6uqrm5t30XXXVW3cWPXss83NPHmy6vXXm5v3TzY4WHXjjc1+fz//vOqDD5qb1w+fAUAwAYBgAgDBBACCCQAEEwAIJgAQTAAgmABAMAGAYAIAwQQAggkABBMACCYAEEwAIJgAQDABgGACAMEEAIIJAAQTAAi2IteCj49XPf9873rwpnz5ZdXYWNWTTzY386Jut+rpp5t9MMjkZO9hEJs2NTezqurEiaoffuhdu96U2dnevlR9913VF180+/2dmqo6fry5ef1YkQC8+mrvfvV165qbOTbW7MMaLvfaa70n7TQZgEcf7d0v37T77qt65ZWq7dubm9np9B5eQe8H/6qrek+LasqFCysX2IGlpaWlS387ebJqx47efyPAv8vmzVWHDi37tdNnABBMACCYAEAwAYBgAgDBBACCCQAEEwAIJgAQTAAgmABAMAGAYAIAwQQAggkABBMACCYAEEwAIJgAQDABgGACAMEEAIIJAAQTAAgmABBMACDY8mcDTkxU/fJL1UMPrdA6QGsmJnpPIr3s0WDLA7BtW9Vbb1XdfvvfvRrQtqNHq26+edlLvwOZUbA0sQcC7gAAAABJRU5ErkJggg=="/>
+    <VariableText>
+        <Start Value="0"/>
+        <End Value="999"/>
+        <Current Value="0"/>
+        <Increment Value="1"/>
+        <AutoAdvance Value="0"/>
+    </VariableText>
+    <UIPrefs>
+        <Optimize_ByLayer Value="0"/>
+        <Optimize_ByGroup Value="-1"/>
+        <Optimize_ByPriority Value="1"/>
+        <Optimize_WhichDirection Value="0"/>
+        <Optimize_InnerToOuter Value="1"/>
+        <Optimize_ByDirection Value="0"/>
+        <Optimize_ReduceTravel Value="1"/>
+        <Optimize_HideBacklash Value="0"/>
+        <Optimize_ReduceDirChanges Value="0"/>
+        <Optimize_ChooseCorners Value="0"/>
+        <Optimize_AllowReverse Value="1"/>
+        <Optimize_RemoveOverlaps Value="0"/>
+        <Optimize_OptimalEntryPoint Value="0"/>
+        <Optimize_OverlapDist Value="0.025"/>
+    </UIPrefs>
+    <CutSetting type="Scan">
+        <index Value="0"/>
+        <name Value="C00"/>
+        <minPower Value="10"/>
+        <maxPower Value="10"/>
+        <maxPower2 Value="20"/>
+        <speed Value="3"/>
+        <interval Value="0.2"/>
+        <priority Value="1"/>
+    </CutSetting>
+    <CutSetting type="Scan">
+        <index Value="1"/>
+        <name Value="C01"/>
+        <minPower Value="0"/>
+        <maxPower Value="0"/>
+        <maxPower2 Value="20"/>
+        <speed Value="100"/>
+        <priority Value="2"/>
+        <doOutput Value="0"/>
+    </CutSetting>
+    <CutSetting type="Cut">
+        <index Value="2"/>
+        <name Value="C02"/>
+        <minPower Value="0.01"/>
+        <maxPower Value="0.01"/>
+        <maxPower2 Value="20"/>
+        <speed Value="40"/>
+        <priority Value="0"/>
+    </CutSetting>
+    <Shape Type="Rect" CutIndex="2" W="129" H="132.25" Cr="0">
+        <XForm>1 0 0 1 205 205</XForm>
+    </Shape>
+    <Shape Type="Rect" CutIndex="0" W="13.000001" H="11.000003" Cr="0">
+        <XForm>1 0 0 1 164.29001 257.25</XForm>
+    </Shape>
+    <Shape Type="Rect" CutIndex="0" W="13.000001" H="11.000003" Cr="0">
+        <XForm>1 0 0 1 184.61 257.25</XForm>
+    </Shape>
+    <Shape Type="Rect" CutIndex="0" W="13.000001" H="11.000003" Cr="0">
+        <XForm>1 0 0 1 204.92999 257.25</XForm>
+    </Shape>
+    <Shape Type="Rect" CutIndex="0" W="13.000001" H="11.000003" Cr="0">
+        <XForm>1 0 0 1 225.25 257.25</XForm>
+    </Shape>
+    <Shape Type="Rect" CutIndex="0" W="13.000001" H="11.000003" Cr="0">
+        <XForm>1 0 0 1 245.57001 257.25</XForm>
+    </Shape>
+    <Shape Type="Rect" CutIndex="1" W="11.000001" H="13.000001" Cr="0">
+        <XForm>1 0 0 1 159.20999 160.47501</XForm>
+    </Shape>
+    <Shape Type="Rect" CutIndex="1" W="11.000001" H="13.000001" Cr="0">
+        <XForm>1 0 0 1 182.07001 160.47501</XForm>
+    </Shape>
+    <Shape Type="Rect" CutIndex="1" W="11.000001" H="13.000001" Cr="0">
+        <XForm>1 0 0 1 204.92999 160.47501</XForm>
+    </Shape>
+    <Shape Type="Rect" CutIndex="1" W="11.000001" H="13.000001" Cr="0">
+        <XForm>1 0 0 1 250.79001 160.47501</XForm>
+    </Shape>
+    <Notes ShowOnLoad="0" Notes=""/>
+</LightBurnProject>
