@@ -1424,21 +1424,6 @@ void processCV()
     uint16_t new_velocity_cv_value = adc.analogRead(0);
     uint16_t new_voct_cv_value = adc.analogRead(1);
 
-    // Gate input is inverted
-    if (digitalRead(GATE_CV_PIN) == LOW) {
-        if (!g_gate_cv_state) {
-            MIDI.sendNoteOn(60, 0x7f, CV_SEND_CHANNEL);
-            g_gate_cv_state = true;
-            top_bar.setGateIndicatorState(true);
-        }
-    } else {
-        if (g_gate_cv_state) {
-            MIDI.sendNoteOff(60, 0x7f, CV_SEND_CHANNEL);
-            g_gate_cv_state = false;
-            top_bar.setGateIndicatorState(false);
-        }
-    }
-
     // Velocity is sent as aftertouch
     // TODO: Redo bitshift when using a higher-resolution ADC
     if (new_velocity_cv_value != velocity_cv_value) {
@@ -1453,7 +1438,7 @@ void processCV()
 
     // V/Oct is sent as a pitch bend
     // TODO: Redo calculation after upgrading to a higher-resolution ADC
-    if (new_voct_cv_value != voct_cv_value) {
+    if ((new_voct_cv_value < voct_cv_value - 1) || (new_voct_cv_value > voct_cv_value + 1)) {
         voct_cv_value = new_voct_cv_value;
         // each octave is 0x71
         // decrease to have higher base octave
@@ -1466,6 +1451,22 @@ void processCV()
             debug_page.updateCVReadings(voct_cv_value, velocity_cv_value);
         }
 #endif
+    }
+
+    // Gate input is inverted
+    // Note number is ignored, velocity is bit-shifted to 0x00 - 0x7f range
+    if (digitalRead(GATE_CV_PIN) == LOW) {
+        if (!g_gate_cv_state) {
+            MIDI.sendNoteOn(60, (uint16_t)velocity_cv_value >> 3, CV_SEND_CHANNEL);
+            g_gate_cv_state = true;
+            top_bar.setGateIndicatorState(true);
+        }
+    } else {
+        if (g_gate_cv_state) {
+            MIDI.sendNoteOff(60, 0, CV_SEND_CHANNEL);
+            g_gate_cv_state = false;
+            top_bar.setGateIndicatorState(false);
+        }
     }
 #endif
 }
@@ -1591,16 +1592,19 @@ void loop()
         analogRead(MUX_1_COM_PIN);
         pot_readings[mux_channel][pot_reading_index] = analogRead(MUX_1_COM_PIN) >> 2;
         processMidi();
+        processCV();
         processTouchscreenInput();
 
         analogRead(MUX_2_COM_PIN);
         pot_readings[16 + mux_channel][pot_reading_index] = analogRead(MUX_2_COM_PIN) >> 2;
         processMidi();
+        processCV();
         processTouchscreenInput();
 
         analogRead(MUX_3_COM_PIN);
         pot_readings[32 + mux_channel][pot_reading_index] = analogRead(MUX_3_COM_PIN) >> 2;
         processMidi();
+        processCV();
         processTouchscreenInput();
 
         if (mux_channel < 8) {
@@ -1608,12 +1612,12 @@ void loop()
             pot_readings[48 + mux_channel][pot_reading_index] = analogRead(MAIN_MUX_COM_PIN) >> 2;
         }
         processMidi();
+        processCV();
 
 #endif
         processTouchscreenInput();
     }
 
-    processCV();
     processTouchscreenInput();
 
 #if WITH_DEBUG_PAGE == 1
